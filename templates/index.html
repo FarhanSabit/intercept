@@ -4296,6 +4296,10 @@
             const sensorTimelineContainer = document.getElementById('sensorTimelineContainer');
             if (pagerTimelineContainer) pagerTimelineContainer.style.display = mode === 'pager' ? 'block' : 'none';
             if (sensorTimelineContainer) sensorTimelineContainer.style.display = mode === 'sensor' ? 'block' : 'none';
+            const pagerScopePanel = document.getElementById('pagerScopePanel');
+            if (pagerScopePanel && mode !== 'pager') pagerScopePanel.style.display = 'none';
+            const sensorScopePanel = document.getElementById('sensorScopePanel');
+            if (sensorScopePanel && mode !== 'sensor') sensorScopePanel.style.display = 'none';
             const morseScopePanel = document.getElementById('morseScopePanel');
             const morseOutputPanel = document.getElementById('morseOutputPanel');
             if (morseScopePanel && mode !== 'morse') morseScopePanel.style.display = 'none';
