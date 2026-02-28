@@ -127,6 +127,7 @@ if [[ "$HAS_GUNICORN" -eq 1 && "$HAS_GEVENT" -eq 1 ]]; then
         -k gevent
         -w 1
         --timeout 300
+        --graceful-timeout 5
         --worker-connections 1000
         --bind "${HOST}:${PORT}"
         --access-logfile -
