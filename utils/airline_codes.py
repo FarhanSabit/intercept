@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 # IATA (2-letter) → ICAO (3-letter) mapping for common airlines
+# NOTE: Duplicated in templates/adsb_dashboard.html (JS IATA_TO_ICAO) — keep both in sync
 IATA_TO_ICAO: dict[str, str] = {
     # North America — Major
     "AA": "AAL",  # American Airlines
@@ -112,8 +113,6 @@ IATA_TO_ICAO: dict[str, str] = {
     "AV": "AVA",  # Avianca
     "CM": "CMP",  # Copa Airlines
     "AR": "ARG",  # Aerolíneas Argentinas
-    # ACARS-specific addressing codes
-    "MC": "MCO",  # Possible: some ACARS systems use MC
 }
 
 # Build reverse mapping (ICAO → IATA)

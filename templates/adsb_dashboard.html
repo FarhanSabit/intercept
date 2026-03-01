@@ -2864,8 +2864,8 @@ sudo make install</code>
 
             return `
                 <div class="aircraft-header">
-                    <span class="aircraft-callsign">${callsign}${badge}${acarsIndicator}${agentBadge}</span>
-                    <span class="aircraft-icao">${typeCode ? typeCode + ' • ' : ''}${ac.icao}</span>
+                    <span class="aircraft-callsign">${escapeHtml(callsign)}${badge}${acarsIndicator}${agentBadge}</span>
+                    <span class="aircraft-icao">${typeCode ? escapeHtml(typeCode) + ' • ' : ''}${escapeHtml(ac.icao)}</span>
                 </div>
                 <div class="aircraft-details">
                     <div class="aircraft-detail">
@@ -3242,6 +3242,7 @@ sudo make install</code>
             return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700;color:#000;background:' + color + ';">' + lbl + '</span>';
         }
 
+        // TODO: Similar to renderAcarsMainCard in partials/modes/acars.html — consider unifying
         function renderAcarsCard(msg) {
             const type = msg.message_type || 'other';
             const badge = getAcarsTypeBadge(type);
@@ -3346,6 +3347,7 @@ sudo make install</code>
                     cleanupTrail(icao);
                     delete aircraft[icao];
                     delete alertedAircraft[icao];
+                    if (typeof acarsAircraftIcaos !== 'undefined') acarsAircraftIcaos.delete(icao);
                     needsUpdate = true;
 
                     if (selectedIcao === icao) {
@@ -3811,8 +3813,8 @@ sudo make install</code>
             });
 
             container.innerHTML = freqs.map((freq, i) => {
-                // On initial load, only check the first (primary) frequency; otherwise preserve state
-                const checked = previouslyChecked.size === 0 ? (i === 0 ? 'checked' : '') : (previouslyChecked.has(freq) ? 'checked' : '');
+                // On initial load, check all frequencies; otherwise preserve state
+                const checked = previouslyChecked.size === 0 || previouslyChecked.has(freq) ? 'checked' : '';
                 return `
                     <label style="display: flex; align-items: center; gap: 3px; padding: 2px 6px; background: var(--bg-secondary); border-radius: 3px; cursor: pointer;">
                         <input type="checkbox" class="acars-freq-cb" value="${freq}" ${checked} style="margin: 0; cursor: pointer;">
@@ -4040,6 +4042,7 @@ sudo make install</code>
         const acarsAircraftIcaos = new Set();
 
         // IATA (2-letter) → ICAO (3-letter) airline code mapping
+        // NOTE: Duplicated from utils/airline_codes.py — keep both in sync
         const IATA_TO_ICAO = {
             'AA':'AAL','DL':'DAL','UA':'UAL','WN':'SWA','B6':'JBU','AS':'ASA',
             'NK':'NKS','F9':'FFT','G4':'AAY','HA':'HAL','SY':'SCX','WS':'WJA',
@@ -4696,8 +4699,9 @@ sudo make install</code>
             `;
 
             if (matchedIcao) {
-                msg.addEventListener('click', (e) => { e.stopPropagation(); selectAircraft(matchedIcao); });
-                msg.title = 'Click to locate ' + label + ' on map';
+                msg.addEventListener('click', () => selectAircraft(matchedIcao));
+                msg.addEventListener('dblclick', () => showVdl2Modal(data, time));
+                msg.title = 'Click to locate on map, double-click for details';
             } else {
                 msg.addEventListener('click', () => showVdl2Modal(data, time));
             }

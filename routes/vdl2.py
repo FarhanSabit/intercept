@@ -15,21 +15,23 @@ import time
 from datetime import datetime
 from typing import Any, Generator
 
-from flask import Blueprint, jsonify, request, Response
+from flask import Blueprint, Response, jsonify, request
 
 import app as app_module
-from utils.logging import sensor_logger as logger
-from utils.validation import validate_device_index, validate_gain, validate_ppm
-from utils.sdr import SDRFactory, SDRType
-from utils.sse import sse_stream_fanout
-from utils.event_pipeline import process_event
+from utils.acars_translator import translate_message
 from utils.constants import (
+    PROCESS_START_WAIT,
     PROCESS_TERMINATE_TIMEOUT,
     SSE_KEEPALIVE_INTERVAL,
     SSE_QUEUE_TIMEOUT,
-    PROCESS_START_WAIT,
 )
+from utils.event_pipeline import process_event
+from utils.flight_correlator import get_flight_correlator
+from utils.logging import sensor_logger as logger
 from utils.process import register_process, unregister_process
+from utils.sdr import SDRFactory, SDRType
+from utils.sse import sse_stream_fanout
+from utils.validation import validate_device_index, validate_gain, validate_ppm
 
 vdl2_bp = Blueprint('vdl2', __name__, url_prefix='/vdl2')
 
@@ -85,7 +87,6 @@ def stream_vdl2_output(process: subprocess.Popen, is_text_mode: bool = False) ->
                     vdl2_inner = data.get('vdl2', data)
                     acars_payload = (vdl2_inner.get('avlc') or {}).get('acars')
                     if acars_payload and acars_payload.get('label'):
-                        from utils.acars_translator import translate_message
                         translation = translate_message({
                             'label': acars_payload.get('label'),
                             'text': acars_payload.get('msg_text', ''),
@@ -104,7 +105,6 @@ def stream_vdl2_output(process: subprocess.Popen, is_text_mode: bool = False) ->
 
                 # Feed flight correlator
                 try:
-                    from utils.flight_correlator import get_flight_correlator
                     get_flight_correlator().add_vdl2_message(data)
                 except Exception:
                     pass
@@ -396,7 +396,6 @@ def stream_vdl2() -> Response:
 @vdl2_bp.route('/messages')
 def get_vdl2_messages() -> Response:
     """Get recent VDL2 messages from correlator (for history reload)."""
-    from utils.flight_correlator import get_flight_correlator
     limit = request.args.get('limit', 50, type=int)
     limit = max(1, min(limit, 200))
     msgs = get_flight_correlator().get_recent_messages('vdl2', limit)
@@ -407,7 +406,6 @@ def get_vdl2_messages() -> Response:
 def clear_vdl2_messages() -> Response:
     """Clear stored VDL2 messages and reset counter."""
     global vdl2_message_count, vdl2_last_message_time
-    from utils.flight_correlator import get_flight_correlator
     get_flight_correlator().clear_vdl2()
     vdl2_message_count = 0
     vdl2_last_message_time = None

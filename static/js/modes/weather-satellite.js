@@ -727,6 +727,7 @@ const WeatherSat = (function() {
      * Draw polar plot for a pass trajectory
      */
     function drawPolarPlot(pass) {
+        if (!pass) return;
         const canvas = document.getElementById('wxsatPolarCanvas');
         if (!canvas) return;
 
