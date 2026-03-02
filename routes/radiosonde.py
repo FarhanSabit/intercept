@@ -243,11 +243,38 @@ radius_temporary_block = False
 sonde_time_threshold = 3
 """
 
-    with open(cfg_path, 'w') as f:
-        f.write(cfg)
+    try:
+        with open(cfg_path, 'w') as f:
+            f.write(cfg)
+    except OSError as e:
+        logger.error(f"Cannot write station.cfg to {cfg_path}: {e}")
+        raise RuntimeError(
+            f"Cannot write radiosonde config to {cfg_path}: {e}. "
+            f"Fix permissions with: sudo chown -R $(whoami) {cfg_dir}"
+        ) from e
+
+    # When running as root via sudo, fix ownership so next non-root run
+    # can still read/write these files.
+    _fix_data_ownership(cfg_dir)
 
     logger.info(f"Generated station.cfg at {cfg_path}")
     return cfg_path
+
+
+def _fix_data_ownership(path: str) -> None:
+    """Recursively chown a path to the real (non-root) user when running via sudo."""
+    uid = os.environ.get('INTERCEPT_SUDO_UID')
+    gid = os.environ.get('INTERCEPT_SUDO_GID')
+    if uid is None or gid is None:
+        return
+    try:
+        uid_int, gid_int = int(uid), int(gid)
+        for dirpath, dirnames, filenames in os.walk(path):
+            os.chown(dirpath, uid_int, gid_int)
+            for fname in filenames:
+                os.chown(os.path.join(dirpath, fname), uid_int, gid_int)
+    except OSError as e:
+        logger.warning(f"Could not fix ownership of {path}: {e}")
 
 
 def parse_radiosonde_udp(udp_port: int) -> None:
@@ -532,17 +559,22 @@ def start_radiosonde():
         }), 409
 
     # Generate config
-    cfg_path = generate_station_cfg(
-        freq_min=freq_min,
-        freq_max=freq_max,
-        gain=gain,
-        device_index=device_int,
-        ppm=ppm,
-        bias_t=bias_t,
-        latitude=latitude,
-        longitude=longitude,
-        gpsd_enabled=gpsd_enabled,
-    )
+    try:
+        cfg_path = generate_station_cfg(
+            freq_min=freq_min,
+            freq_max=freq_max,
+            gain=gain,
+            device_index=device_int,
+            ppm=ppm,
+            bias_t=bias_t,
+            latitude=latitude,
+            longitude=longitude,
+            gpsd_enabled=gpsd_enabled,
+        )
+    except (OSError, RuntimeError) as e:
+        app_module.release_sdr_device(device_int, sdr_type_str)
+        logger.error(f"Failed to generate radiosonde config: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
     # Build command - auto_rx -c expects a config DIRECTORY containing station.cfg
     cfg_dir = os.path.dirname(os.path.abspath(cfg_path))

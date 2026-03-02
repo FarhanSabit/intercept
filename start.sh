@@ -79,12 +79,25 @@ export INTERCEPT_HOST="$HOST"
 export INTERCEPT_PORT="$PORT"
 
 # ── Fix ownership of user data dirs when run via sudo ────────────────────────
+# When invoked via sudo the server process runs as root, so every file it
+# creates (configs, logs, database) ends up owned by root.  On the *next*
+# startup we fix that retroactively, and we also pre-create known runtime
+# directories so they get correct ownership from the start.
 if [[ "$(id -u)" -eq 0 && -n "${SUDO_USER:-}" ]]; then
-    for dir in instance data; do
+    # Pre-create directories that routes may need at runtime
+    mkdir -p "$SCRIPT_DIR/instance" \
+             "$SCRIPT_DIR/data/radiosonde/logs" \
+             "$SCRIPT_DIR/data/weather_sat"
+
+    for dir in instance data certs; do
         if [[ -d "$SCRIPT_DIR/$dir" ]]; then
             chown -R "$SUDO_USER" "$SCRIPT_DIR/$dir"
         fi
     done
+
+    # Export real user identity so Python can chown runtime-created files
+    export INTERCEPT_SUDO_UID="$(id -u "$SUDO_USER")"
+    export INTERCEPT_SUDO_GID="$(id -g "$SUDO_USER")"
 fi
 
 # ── Dependency check (delegate to intercept.py) ─────────────────────────────
