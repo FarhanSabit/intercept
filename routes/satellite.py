@@ -468,7 +468,8 @@ def refresh_tle_data() -> list:
         'NOAA 20 (JPSS-1)': 'NOAA-20',
         'NOAA 21 (JPSS-2)': 'NOAA-21',
         'METEOR-M 2': 'METEOR-M2',
-        'METEOR-M2 3': 'METEOR-M2-3'
+        'METEOR-M2 3': 'METEOR-M2-3',
+        'METEOR-M2 4': 'METEOR-M2-4'
     }
 
     updated = []
