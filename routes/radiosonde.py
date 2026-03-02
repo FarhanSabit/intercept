@@ -576,12 +576,12 @@ def start_radiosonde():
         logger.error(f"Failed to generate radiosonde config: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-    # Build command - auto_rx -c expects a config DIRECTORY containing station.cfg
-    cfg_dir = os.path.dirname(os.path.abspath(cfg_path))
+    # Build command - auto_rx -c expects the path to station.cfg
+    cfg_abs = os.path.abspath(cfg_path)
     if auto_rx_path.endswith('.py'):
-        cmd = [sys.executable, auto_rx_path, '-c', cfg_dir]
+        cmd = [sys.executable, auto_rx_path, '-c', cfg_abs]
     else:
-        cmd = [auto_rx_path, '-c', cfg_dir]
+        cmd = [auto_rx_path, '-c', cfg_abs]
 
     # Set cwd to the auto_rx directory so 'from autorx.scan import ...' works
     auto_rx_dir = os.path.dirname(os.path.abspath(auto_rx_path))
