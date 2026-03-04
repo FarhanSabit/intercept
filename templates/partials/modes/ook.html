@@ -13,16 +13,15 @@
         <h3>Frequency</h3>
         <div class="form-group">
             <label>Frequency (MHz)</label>
-            <input type="number" id="ookFrequency" value="433.920" step="0.001" min="1" max="1766">
+            <input type="number" id="ookFrequency" value="433.920" step="0.001" min="24" max="1766">
         </div>
         <div class="form-group">
-            <label>Presets <span style="font-size:9px; color:#555;">(right-click to remove)</span></label>
-            <div id="ookPresetButtons" style="display: flex; flex-wrap: wrap; gap: 4px;">
+            <label>Presets <span class="ook-preset-hint">(right-click to remove)</span></label>
+            <div id="ookPresetButtons" class="ook-presets">
                 <!-- Populated by OokMode.renderPresets() -->
             </div>
-            <div style="margin-top: 6px; display: flex; gap: 4px;">
-                <input type="text" id="ookNewPresetFreq" placeholder="MHz"
-                       style="width: 80px; background: #111; border: 1px solid #222; border-radius: 3px; color: var(--text-dim); font-family: var(--font-mono); font-size: 11px; padding: 3px 6px;">
+            <div class="ook-preset-add">
+                <input type="text" id="ookNewPresetFreq" placeholder="MHz">
                 <button class="preset-btn" onclick="OokMode.addPreset()" style="background: #2ecc71; color: #000;">Add</button>
                 <button class="preset-btn" onclick="OokMode.resetPresets()" style="font-size: 10px;">Reset</button>
             </div>
@@ -44,16 +43,14 @@
     <div class="section">
         <h3>Modulation</h3>
         <div class="form-group">
-            <div style="display: flex; gap: 4px;">
+            <div class="ook-encoding-btns">
                 <button class="preset-btn" id="ookEnc_pwm"
                         onclick="OokMode.setEncoding('pwm')"
-                        style="flex: 1; background: var(--accent); color: #000;">PWM</button>
+                        style="background: var(--accent); color: #000;">PWM</button>
                 <button class="preset-btn" id="ookEnc_ppm"
-                        onclick="OokMode.setEncoding('ppm')"
-                        style="flex: 1;">PPM</button>
+                        onclick="OokMode.setEncoding('ppm')">PPM</button>
                 <button class="preset-btn" id="ookEnc_manchester"
-                        onclick="OokMode.setEncoding('manchester')"
-                        style="flex: 1;">Manchester</button>
+                        onclick="OokMode.setEncoding('manchester')">Manchester</button>
             </div>
             <input type="hidden" id="ookEncoding" value="pwm">
             <p id="ookEncodingHint" class="info-text" style="font-size: 10px; color: var(--text-dim); margin-top: 4px;">
@@ -67,7 +64,7 @@
         <p class="info-text" style="font-size: 10px; color: var(--text-dim); margin-bottom: 8px;">
             Pulse widths in microseconds for the flex decoder.
         </p>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="ook-timing-grid">
             <div class="form-group">
                 <label>Short (&mu;s)</label>
                 <input type="number" id="ookShortPulse" value="300" step="10" min="50" max="5000">
@@ -95,7 +92,7 @@
         </div>
         <div class="form-group" style="margin-top: 8px;">
             <label style="font-size: 10px; color: var(--text-dim);">Quick presets (short/long &mu;s)</label>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+            <div class="ook-timing-presets">
                 <button class="preset-btn" onclick="OokMode.setTiming(300,600,8000,5000,150,8)"
                         title="Generic ISM default">300/600</button>
                 <button class="preset-btn" onclick="OokMode.setTiming(300,900,8000,5000,150,16)"
@@ -113,8 +110,8 @@
     <div class="section">
         <h3>Options</h3>
         <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                <input type="checkbox" id="ookDeduplicate" style="width: auto; margin: 0;">
+            <label class="ook-dedup-label">
+                <input type="checkbox" id="ookDeduplicate">
                 <span>Deduplicate frames</span>
             </label>
             <p class="info-text" style="font-size: 10px; color: var(--text-dim); margin-top: 4px;">
@@ -126,25 +123,25 @@
 
     <!-- Status -->
     <div class="section">
-        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim);">
-            <span id="ookStatusIndicator" class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim);"></span>
+        <div class="ook-status-row">
+            <span id="ookStatusIndicator" class="ook-status-dot"></span>
             <span id="ookStatusText">Standby</span>
             <span style="margin-left: auto;" id="ookFrameCount">0 frames</span>
         </div>
     </div>
 
     <div class="section">
-        <p class="info-text" style="font-size: 11px; color: #ffaa00; line-height: 1.5;">
+        <p class="info-text ook-warning">
             Uses rtl_433 with a custom flex decoder. Requires rtl_433 installed.
             Works on any OOK/ASK signal in the SDR's frequency range.
         </p>
-        <div id="ookCommandDisplay" style="display: none; margin-top: 8px;">
+        <div id="ookCommandDisplay" class="ook-command-display">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span style="font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px;">Active Command</span>
+                <span class="ook-command-label">Active Command</span>
                 <button class="btn btn-sm btn-ghost" onclick="OokMode.copyCommand()" title="Copy to clipboard"
                         style="font-size: 9px; padding: 1px 6px;">Copy</button>
             </div>
-            <pre id="ookCommandText" style="margin: 0; padding: 6px 8px; background: #0a0a0a; border: 1px solid #1a2e1a; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); white-space: pre-wrap; word-break: break-all; line-height: 1.5;"></pre>
+            <pre id="ookCommandText" class="ook-command-text"></pre>
         </div>
     </div>
 

@@ -232,19 +232,38 @@ def start_ook() -> Response:
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+def _close_pipe(pipe_obj) -> None:
+    """Close a subprocess pipe, suppressing errors."""
+    if pipe_obj is not None:
+        with contextlib.suppress(Exception):
+            pipe_obj.close()
+
+
 @ook_bp.route('/ook/stop', methods=['POST'])
 def stop_ook() -> Response:
     global ook_active_device
 
     with app_module.ook_lock:
         if app_module.ook_process:
-            stop_event = getattr(app_module.ook_process, '_stop_parser', None)
+            proc = app_module.ook_process
+            stop_event = getattr(proc, '_stop_parser', None)
+            parser_thread = getattr(proc, '_parser_thread', None)
+
+            # Signal parser thread to stop
             if stop_event:
                 stop_event.set()
 
-            safe_terminate(app_module.ook_process)
-            unregister_process(app_module.ook_process)
+            # Close pipes so parser thread unblocks from readline()
+            _close_pipe(getattr(proc, 'stdout', None))
+            _close_pipe(getattr(proc, 'stderr', None))
+
+            safe_terminate(proc)
+            unregister_process(proc)
             app_module.ook_process = None
+
+            # Join parser thread with timeout
+            if parser_thread:
+                parser_thread.join(timeout=0.5)
 
             if ook_active_device is not None:
                 app_module.release_sdr_device(ook_active_device)

@@ -832,7 +832,7 @@ def health_check() -> Response:
 def kill_all() -> Response:
     """Kill all decoder, WiFi, and Bluetooth processes."""
     global current_process, sensor_process, wifi_process, adsb_process, ais_process, acars_process
-    global vdl2_process, morse_process, radiosonde_process
+    global vdl2_process, morse_process, radiosonde_process, ook_process
     global aprs_process, aprs_rtl_process, dsc_process, dsc_rtl_process, bt_process
 
     # Import modules to reset their state
@@ -895,6 +895,13 @@ def kill_all() -> Response:
     # Reset Morse state
     with morse_lock:
         morse_process = None
+
+    # Reset OOK state
+    with ook_lock:
+        if ook_process:
+            safe_terminate(ook_process)
+            unregister_process(ook_process)
+        ook_process = None
 
     # Reset APRS state
     with aprs_lock:
