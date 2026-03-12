@@ -247,6 +247,8 @@ const WiFiMode = (function() {
     // ==========================================================================
 
     async function checkCapabilities() {
+        const capBtn = document.getElementById('wifiQuickScanBtn');
+        if (capBtn) capBtn.classList.add('btn-loading');
         try {
             const isAgentMode = typeof currentAgent !== 'undefined' && currentAgent !== 'local';
             let response;
@@ -291,6 +293,8 @@ const WiFiMode = (function() {
         } catch (error) {
             console.error('[WiFiMode] Capability check failed:', error);
             showCapabilityError('Failed to check WiFi capabilities');
+        } finally {
+            if (capBtn) capBtn.classList.remove('btn-loading');
         }
     }
 
@@ -386,18 +390,40 @@ const WiFiMode = (function() {
         if (elements.scanModeDeep) {
             elements.scanModeDeep.addEventListener('click', () => setScanMode('deep'));
         }
+        // Arrow key navigation between tabs
+        const tabContainer = document.querySelector('.wifi-scan-mode-tabs');
+        if (tabContainer) {
+            tabContainer.addEventListener('keydown', (e) => {
+                const tabs = Array.from(tabContainer.querySelectorAll('[role="tab"]'));
+                const idx = tabs.indexOf(document.activeElement);
+                if (idx === -1) return;
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    const next = tabs[(idx + 1) % tabs.length];
+                    next.focus();
+                    next.click();
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
+                    prev.focus();
+                    prev.click();
+                }
+            });
+        }
         listenersBound.scanTabs = true;
     }
 
     function setScanMode(mode) {
         scanMode = mode;
 
-        // Update tab UI
+        // Update tab UI and ARIA states
         if (elements.scanModeQuick) {
             elements.scanModeQuick.classList.toggle('active', mode === 'quick');
+            elements.scanModeQuick.setAttribute('aria-selected', mode === 'quick' ? 'true' : 'false');
         }
         if (elements.scanModeDeep) {
             elements.scanModeDeep.classList.toggle('active', mode === 'deep');
+            elements.scanModeDeep.setAttribute('aria-selected', mode === 'deep' ? 'true' : 'false');
         }
 
         console.log('[WiFiMode] Scan mode set to:', mode);
@@ -416,6 +442,7 @@ const WiFiMode = (function() {
         }
 
         console.log('[WiFiMode] Starting quick scan...');
+        if (elements.quickScanBtn) elements.quickScanBtn.classList.add('btn-loading');
         setScanning(true, 'quick');
 
         try {
@@ -496,6 +523,8 @@ const WiFiMode = (function() {
             console.error('[WiFiMode] Quick scan error:', error);
             showError(error.message + '. Try using Deep Scan instead.');
             setScanning(false);
+        } finally {
+            if (elements.quickScanBtn) elements.quickScanBtn.classList.remove('btn-loading');
         }
     }
 
@@ -508,6 +537,7 @@ const WiFiMode = (function() {
         }
 
         console.log('[WiFiMode] Starting deep scan...');
+        if (elements.deepScanBtn) elements.deepScanBtn.classList.add('btn-loading');
         setScanning(true, 'deep');
 
         try {
@@ -569,6 +599,8 @@ const WiFiMode = (function() {
             console.error('[WiFiMode] Deep scan error:', error);
             showError(error.message);
             setScanning(false);
+        } finally {
+            if (elements.deepScanBtn) elements.deepScanBtn.classList.remove('btn-loading');
         }
     }
 

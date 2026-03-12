@@ -80,6 +80,7 @@
           </div>
 
           <form method="POST">
+            {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />{% endif %}
             <input type="text" name="username" placeholder="OPERATOR ID" class="form-input" required autofocus autocomplete="off" />
             <input type="password" name="password" placeholder="ENCRYPTION KEY" class="form-input" required />
 

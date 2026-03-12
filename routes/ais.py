@@ -14,6 +14,7 @@ from typing import Generator
 
 from flask import Blueprint, jsonify, request, Response, render_template
 
+from utils.responses import api_success, api_error
 import app as app_module
 from config import SHARED_OBSERVER_LOCATION_ENABLED
 from utils.logging import get_logger
@@ -361,7 +362,7 @@ def start_ais():
 
     with app_module.ais_lock:
         if ais_running:
-            return jsonify({'status': 'already_running', 'message': 'AIS tracking already active'}), 409
+            return api_error('AIS tracking already active', 409)
 
     data = request.json or {}
 
@@ -370,15 +371,12 @@ def start_ais():
         gain = int(validate_gain(data.get('gain', '40')))
         device = validate_device_index(data.get('device', '0'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     # Find AIS-catcher
     ais_catcher_path = find_ais_catcher()
     if not ais_catcher_path:
-        return jsonify({
-            'status': 'error',
-            'message': 'AIS-catcher not found. Install from https://github.com/jvde-github/AIS-catcher/releases'
-        }), 400
+        return api_error('AIS-catcher not found. Install from https://github.com/jvde-github/AIS-catcher/releases', 400)
 
     # Get SDR type from request
     sdr_type_str = data.get('sdr_type', 'rtlsdr')
@@ -406,11 +404,7 @@ def start_ais():
     device_int = int(device)
     error = app_module.claim_sdr_device(device_int, 'ais', sdr_type_str)
     if error:
-        return jsonify({
-            'status': 'error',
-            'error_type': 'DEVICE_BUSY',
-            'message': error
-        }), 409
+        return api_error(error, 409, error_type='DEVICE_BUSY')
 
     # Build command using SDR abstraction
     sdr_device = SDRFactory.create_default_device(sdr_type, index=device)
@@ -455,7 +449,7 @@ def start_ais():
             error_msg = 'AIS-catcher failed to start. Check SDR device connection.'
             if stderr_output:
                 error_msg += f' Error: {stderr_output[:500]}'
-            return jsonify({'status': 'error', 'message': error_msg}), 500
+            return api_error(error_msg, 500)
 
         ais_running = True
         ais_active_device = device
@@ -475,7 +469,7 @@ def start_ais():
         # Release device on failure
         app_module.release_sdr_device(device_int, sdr_type_str)
         logger.error(f"Failed to start AIS-catcher: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @ais_bp.route('/stop', methods=['POST'])
@@ -535,7 +529,7 @@ def stream_ais():
 def get_vessel_dsc(mmsi: str):
     """Get DSC messages associated with a vessel MMSI."""
     if not mmsi or not mmsi.isdigit():
-        return jsonify({'status': 'error', 'message': 'Invalid MMSI'}), 400
+        return api_error('Invalid MMSI', 400)
 
     matches = []
     try:
@@ -545,7 +539,7 @@ def get_vessel_dsc(mmsi: str):
     except Exception:
         pass
 
-    return jsonify({'status': 'success', 'mmsi': mmsi, 'dsc_messages': matches})
+    return api_success(data={'mmsi': mmsi, 'dsc_messages': matches})
 
 
 @ais_bp.route('/dashboard')

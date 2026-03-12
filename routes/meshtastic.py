@@ -16,6 +16,7 @@ from typing import Generator
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 from utils.logging import get_logger
 from utils.sse import sse_stream_fanout
 from utils.meshtastic import (
@@ -1050,11 +1051,11 @@ def request_store_forward():
 def mesh_topology():
     """Return mesh network topology graph."""
     if not is_meshtastic_available():
-        return jsonify({'status': 'error', 'message': 'Meshtastic SDK not installed'}), 400
+        return api_error('Meshtastic SDK not installed', 400)
 
     client = get_meshtastic_client()
     if not client or not client.is_running:
-        return jsonify({'status': 'error', 'message': 'Not connected'}), 400
+        return api_error('Not connected', 400)
 
     return jsonify({
         'status': 'success',

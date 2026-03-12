@@ -86,6 +86,11 @@ done
 export INTERCEPT_HOST="$HOST"
 export INTERCEPT_PORT="$PORT"
 
+# ── macOS: allow fork() after ObjC initialisation (gunicorn + gevent) ────
+if [[ "$(uname)" == "Darwin" ]]; then
+    export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+fi
+
 # ── Fix ownership of user data dirs when run via sudo ────────────────────────
 # When invoked via sudo the server process runs as root, so every file it
 # creates (configs, logs, database) ends up owned by root.  On the *next*
@@ -152,7 +157,17 @@ fi
 
 # ── Resolve LAN address for display ──────────────────────────────────────────
 if [[ "$HOST" == "0.0.0.0" ]]; then
-    LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+    # hostname -I on macOS fails or returns empty — try macOS methods
+    if [[ -z "$LAN_IP" ]]; then
+        LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || true)
+    fi
+    if [[ -z "$LAN_IP" ]]; then
+        LAN_IP=$(ipconfig getifaddr en1 2>/dev/null || true)
+    fi
+    if [[ -z "$LAN_IP" ]]; then
+        LAN_IP=$(ifconfig 2>/dev/null | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}' || true)
+    fi
     LAN_IP="${LAN_IP:-localhost}"
 else
     LAN_IP="$HOST"

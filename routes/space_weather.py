@@ -13,6 +13,7 @@ from typing import Any
 from flask import Blueprint, Response, jsonify
 
 from utils.logging import get_logger
+from utils.responses import api_success, api_error
 
 logger = get_logger('intercept.space_weather')
 
@@ -289,7 +290,7 @@ def get_image(key: str):
     """Proxy and cache whitelisted space weather images."""
     entry = IMAGE_WHITELIST.get(key)
     if not entry:
-        return jsonify({'error': 'Unknown image key'}), 404
+        return api_error('Unknown image key', 404)
 
     cache_key = f'img_{key}'
     cached = _cache_get(cache_key)
@@ -299,7 +300,7 @@ def get_image(key: str):
 
     img_data = _fetch_bytes(entry['url'])
     if img_data is None:
-        return jsonify({'error': 'Failed to fetch image'}), 502
+        return api_error('Failed to fetch image', 502)
 
     _cache_set(cache_key, img_data, TTL_IMAGE)
     return Response(img_data, content_type=entry['content_type'],

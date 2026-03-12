@@ -13,6 +13,8 @@ from typing import Optional
 
 from flask import Blueprint, Flask, jsonify, request, Response
 
+from utils.responses import api_success, api_error
+
 try:
     from flask_sock import Sock
     WEBSOCKET_AVAILABLE = True
@@ -226,8 +228,7 @@ def list_receivers() -> Response:
             if r.get('freq_lo', 0) <= freq_khz <= r.get('freq_hi', 30000)
         ]
 
-    return jsonify({
-        'status': 'success',
+    return api_success(data={
         'receivers': filtered[:100],
         'total': len(filtered),
         'cached_total': len(receivers),
@@ -242,7 +243,7 @@ def nearest_receivers() -> Response:
     freq_khz = request.args.get('freq_khz', type=float)
 
     if lat is None or lon is None:
-        return jsonify({'status': 'error', 'message': 'lat and lon are required'}), 400
+        return api_error('lat and lon are required', 400)
 
     receivers = get_receivers()
 
@@ -264,10 +265,7 @@ def nearest_receivers() -> Response:
 
     with_distance.sort(key=lambda x: x['distance_km'])
 
-    return jsonify({
-        'status': 'success',
-        'receivers': with_distance[:10],
-    })
+    return api_success(data={'receivers': with_distance[:10]})
 
 
 @websdr_bp.route('/spy-station/<station_id>/receivers')
@@ -276,7 +274,7 @@ def spy_station_receivers(station_id: str) -> Response:
     try:
         from routes.spy_stations import STATIONS
     except ImportError:
-        return jsonify({'status': 'error', 'message': 'Spy stations module not available'}), 503
+        return api_error('Spy stations module not available', 503)
 
     # Find the station
     station = None
@@ -286,7 +284,7 @@ def spy_station_receivers(station_id: str) -> Response:
             break
 
     if not station:
-        return jsonify({'status': 'error', 'message': 'Station not found'}), 404
+        return api_error('Station not found', 404)
 
     # Get primary frequency
     freq_khz = None
@@ -298,7 +296,7 @@ def spy_station_receivers(station_id: str) -> Response:
         freq_khz = station['frequencies'][0].get('freq_khz')
 
     if freq_khz is None:
-        return jsonify({'status': 'error', 'message': 'No frequency found for station'}), 404
+        return api_error('No frequency found for station', 404)
 
     receivers = get_receivers()
 
@@ -308,8 +306,7 @@ def spy_station_receivers(station_id: str) -> Response:
         if r.get('freq_lo', 0) <= freq_khz <= r.get('freq_hi', 30000) and r.get('available', True)
     ]
 
-    return jsonify({
-        'status': 'success',
+    return api_success(data={
         'station': {
             'id': station['id'],
             'name': station.get('name', ''),

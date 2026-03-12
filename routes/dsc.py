@@ -21,6 +21,7 @@ from typing import Any, Generator
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.constants import (
     DSC_VHF_FREQUENCY_MHZ,
@@ -380,7 +381,7 @@ def start_decoding() -> Response:
                 rtl_tcp_host = validate_rtl_tcp_host(rtl_tcp_host)
                 rtl_tcp_port = validate_rtl_tcp_port(rtl_tcp_port)
             except ValueError as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 400
+                return api_error(str(e), 400)
             sdr_device = SDRFactory.create_network_device(rtl_tcp_host, rtl_tcp_port)
             logger.info(f"Using remote SDR: rtl_tcp://{rtl_tcp_host}:{rtl_tcp_port}")
         else:

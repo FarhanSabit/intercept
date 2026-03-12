@@ -13,6 +13,7 @@ import requests
 
 from flask import Blueprint, jsonify, request, render_template, Response
 
+from utils.responses import api_success, api_error
 from config import SHARED_OBSERVER_LOCATION_ENABLED
 
 from data.satellites import TLE_SATELLITES
@@ -206,7 +207,7 @@ def predict_passes():
         hours = validate_hours(data.get('hours', 24))
         min_el = validate_elevation(data.get('minEl', 10))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     norad_to_name = {
         25544: 'ISS',
@@ -345,7 +346,7 @@ def get_satellite_position():
     try:
         from skyfield.api import wgs84, EarthSatellite
     except ImportError:
-        return jsonify({'status': 'error', 'message': 'skyfield not installed'}), 503
+        return api_error('skyfield not installed', 503)
 
     data = request.json or {}
 
@@ -354,7 +355,7 @@ def get_satellite_position():
         lat = validate_latitude(data.get('latitude', data.get('lat', 51.5074)))
         lon = validate_longitude(data.get('longitude', data.get('lon', -0.1278)))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     sat_input = data.get('satellites', [])
     include_track = bool(data.get('includeTrack', True))
@@ -528,7 +529,7 @@ def update_tle():
         })
     except Exception as e:
         logger.error(f"Error updating TLE data: {e}")
-        return jsonify({'status': 'error', 'message': 'TLE update failed'})
+        return api_error('TLE update failed')
 
 
 @satellite_bp.route('/celestrak/<category>')
@@ -542,7 +543,7 @@ def fetch_celestrak(category):
     ]
 
     if category not in valid_categories:
-        return jsonify({'status': 'error', 'message': f'Invalid category. Valid: {valid_categories}'})
+        return api_error(f'Invalid category. Valid: {valid_categories}')
 
     try:
         url = f'https://celestrak.org/NORAD/elements/gp.php?GROUP={category}&FORMAT=tle'
@@ -583,7 +584,7 @@ def fetch_celestrak(category):
 
     except Exception as e:
         logger.error(f"Error fetching CelesTrak data: {e}")
-        return jsonify({'status': 'error', 'message': 'Failed to fetch satellite data'})
+        return api_error('Failed to fetch satellite data')
 
 
 # =============================================================================
@@ -604,7 +605,7 @@ def add_tracked_satellites_endpoint():
     global _tle_cache
     data = request.get_json(silent=True)
     if not data:
-        return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+        return api_error('No data provided', 400)
 
     # Accept a single satellite dict or a list
     sat_list = data if isinstance(data, list) else [data]
@@ -667,12 +668,12 @@ def update_tracked_satellite_endpoint(norad_id):
     data = request.json or {}
     enabled = data.get('enabled')
     if enabled is None:
-        return jsonify({'status': 'error', 'message': 'Missing enabled field'}), 400
+        return api_error('Missing enabled field', 400)
 
     ok = update_tracked_satellite(str(norad_id), bool(enabled))
     if ok:
         return jsonify({'status': 'success'})
-    return jsonify({'status': 'error', 'message': 'Satellite not found'}), 404
+    return api_error('Satellite not found', 404)
 
 
 @satellite_bp.route('/tracked/<norad_id>', methods=['DELETE'])
@@ -682,4 +683,4 @@ def delete_tracked_satellite_endpoint(norad_id):
     if ok:
         return jsonify({'status': 'success', 'message': msg})
     status_code = 403 if 'builtin' in msg.lower() else 404
-    return jsonify({'status': 'error', 'message': msg}), status_code
+    return api_error(msg, status_code)

@@ -1,7 +1,13 @@
 # Routes package - registers all blueprints with the Flask app
 
+
 def register_blueprints(app):
     """Register all route blueprints with the Flask app."""
+    # Import CSRF to exempt API blueprints (they use JSON, not form tokens)
+    try:
+        from app import csrf as _csrf
+    except ImportError:
+        _csrf = None
     from .acars import acars_bp
     from .adsb import adsb_bp
     from .ais import ais_bp
@@ -83,6 +89,11 @@ def register_blueprints(app):
     app.register_blueprint(radiosonde_bp)  # Radiosonde weather balloon tracking
     app.register_blueprint(system_bp)  # System health monitoring
     app.register_blueprint(ook_bp)  # Generic OOK signal decoder
+
+    # Exempt all API blueprints from CSRF (they use JSON, not form tokens)
+    if _csrf:
+        for bp in app.blueprints.values():
+            _csrf.exempt(bp)
 
     # Initialize TSCM state with queue and lock from app
     import app as app_module

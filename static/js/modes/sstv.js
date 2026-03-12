@@ -215,18 +215,25 @@ const SSTV = (function() {
         });
         window.issMap = issMap;
 
-        // Add tile layer using settings manager if available
+        // Add fallback tiles immediately so the map is visible instantly
+        const fallbackTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            className: 'tile-layer-cyan'
+        }).addTo(issMap);
+
+        // Upgrade tiles in background via Settings (with timeout fallback)
         if (typeof Settings !== 'undefined') {
-            // Wait for settings to load from server before applying tiles
-            await Settings.init();
-            Settings.createTileLayer().addTo(issMap);
-            Settings.registerMap(issMap);
-        } else {
-            // Fallback to dark theme tiles
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                maxZoom: 19,
-                className: 'tile-layer-cyan'
-            }).addTo(issMap);
+            try {
+                await Promise.race([
+                    Settings.init(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
+                ]);
+                issMap.removeLayer(fallbackTiles);
+                Settings.createTileLayer().addTo(issMap);
+                Settings.registerMap(issMap);
+            } catch (e) {
+                console.warn('SSTV: Settings init failed/timed out, using fallback tiles:', e);
+            }
         }
 
         // Create ISS icon

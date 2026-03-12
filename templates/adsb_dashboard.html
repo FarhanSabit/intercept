@@ -4,32 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AIRCRAFT RADAR // INTERCEPT - See the Invisible</title>
+    <!-- Preconnect hints -->
+    {% if offline_settings.assets_source != 'local' %}
+    <link rel="preconnect" href="https://unpkg.com" crossorigin>
+    {% endif %}
+    {% if offline_settings.fonts_source != 'local' %}
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    {% endif %}
+    <link rel="preconnect" href="https://cartodb-basemaps-a.global.ssl.fastly.net" crossorigin>
     <!-- Fonts - Conditional CDN/Local loading -->
     {% if offline_settings.fonts_source == 'local' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/fonts-local.css') }}">
     {% else %}
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     {% endif %}
-    <!-- Leaflet.js - Conditional CDN/Local loading -->
+    <!-- Leaflet CSS -->
     {% if offline_settings.assets_source == 'local' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
-    <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
     {% else %}
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     {% endif %}
-    <!-- Core CSS variables -->
+    <!-- Core CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/variables.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/layout.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}?v={{ version }}&r=maptheme17">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/help-modal.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/adsb_dashboard.css') }}">
+    <!-- Deferred scripts -->
     <script>
         window.INTERCEPT_SHARED_OBSERVER_LOCATION = {{ shared_observer_location | tojson }};
         window.INTERCEPT_ADSB_AUTO_START = {{ adsb_auto_start | tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/core/observer-location.js') }}"></script>
+    {% if offline_settings.assets_source == 'local' %}
+    <script defer src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+    {% else %}
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    {% endif %}
+    <script defer src="{{ url_for('static', filename='js/core/observer-location.js') }}"></script>
 </head>
 <body>
     <div class="radar-bg"></div>
@@ -1716,6 +1729,12 @@ ACARS: ${r.statistics.acarsMessages} messages`;
         // ============================================
         // INITIALIZATION
         // ============================================
+        // Clean up SSE connections on page unload to prevent orphaned streams
+        window.addEventListener('pagehide', function() {
+            if (eventSource) { eventSource.close(); eventSource = null; }
+            if (gpsEventSource) { gpsEventSource.close(); gpsEventSource = null; }
+        });
+
         document.addEventListener('DOMContentLoaded', () => {
             // Initialize observer location input fields from saved location
             const obsLatInput = document.getElementById('obsLat');
@@ -2078,6 +2097,10 @@ sudo make install</code>
         }
 
         async function initMap() {
+            // Guard against double initialization (e.g. bfcache restore)
+            const container = document.getElementById('radarMap');
+            if (!container || container._leaflet_id) return;
+
             radarMap = L.map('radarMap', {
                 center: [observerLocation.lat, observerLocation.lon],
                 zoom: 7,
@@ -2087,19 +2110,14 @@ sudo make install</code>
 
             // Use settings manager for tile layer (allows runtime changes)
             window.radarMap = radarMap;
-            if (typeof Settings !== 'undefined') {
-                // Wait for settings to load from server before applying tiles
-                await Settings.init();
-                Settings.createTileLayer().addTo(radarMap);
-                Settings.registerMap(radarMap);
-            } else {
-                L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-                    maxZoom: 19,
-                    subdomains: 'abcd',
-                    className: 'tile-layer-cyan'
-                }).addTo(radarMap);
-            }
+
+            // Add fallback tiles immediately so the map is never blank
+            const fallbackTiles = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+                maxZoom: 19,
+                subdomains: 'abcd',
+                className: 'tile-layer-cyan'
+            }).addTo(radarMap);
 
             // Draw range rings after map is ready
             setTimeout(() => drawRangeRings(), 100);
@@ -2113,6 +2131,21 @@ sudo make install</code>
             setTimeout(() => {
                 if (radarMap) radarMap.invalidateSize();
             }, 500);
+
+            // Upgrade tiles via Settings in the background (non-blocking)
+            if (typeof Settings !== 'undefined') {
+                try {
+                    await Promise.race([
+                        Settings.init(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
+                    ]);
+                    radarMap.removeLayer(fallbackTiles);
+                    Settings.createTileLayer().addTo(radarMap);
+                    Settings.registerMap(radarMap);
+                } catch (e) {
+                    console.warn('Settings init failed/timed out, using fallback tiles:', e);
+                }
+            }
         }
 
         // Handle window resize for map (especially important on mobile)
@@ -5917,5 +5950,6 @@ sudo make install</code>
             }
         }
     </script>
+
 </body>
 </html>

@@ -22,6 +22,7 @@ from flask import Blueprint, Response, jsonify, request
 
 from utils.constants import SSE_KEEPALIVE_INTERVAL, SSE_QUEUE_TIMEOUT
 from utils.logging import sensor_logger as logger
+from utils.responses import api_success, api_error
 from utils.sse import sse_stream_fanout
 
 try:
@@ -549,10 +550,10 @@ def get_weather() -> Response:
         lat, lon = loc.get('lat'), loc.get('lon')
 
     if lat is None or lon is None:
-        return jsonify({'error': 'No location available'})
+        return api_error('No location available')
 
     if _requests is None:
-        return jsonify({'error': 'requests library not available'})
+        return api_error('requests library not available')
 
     try:
         resp = _requests.get(
@@ -580,4 +581,4 @@ def get_weather() -> Response:
         return jsonify(weather)
     except Exception as exc:
         logger.debug('Weather fetch failed: %s', exc)
-        return jsonify({'error': str(exc)})
+        return api_error(str(exc))

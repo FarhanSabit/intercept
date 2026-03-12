@@ -84,6 +84,18 @@
     border-color: var(--accent-red-hover);
 }
 
+.btn-danger-outline {
+    background: transparent;
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+    background: var(--accent-red-dim);
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+}
+
 .btn-success {
     background: var(--accent-green);
     color: var(--text-inverse);
@@ -877,6 +889,67 @@ textarea:focus {
     cursor: not-allowed;
     filter: grayscale(30%);
 }
+
+/* ============================================
+   MODAL CLOSE BUTTON
+   ============================================ */
+.modal-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: all var(--transition-fast);
+}
+.modal-close-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.modal-close-btn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* Aliases for existing modal-specific close classes */
+.settings-close,
+.help-close,
+.wifi-detail-close,
+.bt-modal-close,
+.tscm-modal-close,
+.signal-details-modal-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: all var(--transition-fast);
+}
+.settings-close:hover,
+.help-close:hover,
+.wifi-detail-close:hover,
+.bt-modal-close:hover,
+.tscm-modal-close:hover,
+.signal-details-modal-close:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.settings-close:focus-visible,
+.help-close:focus-visible,
+.wifi-detail-close:focus-visible,
+.bt-modal-close:focus-visible,
+.tscm-modal-close:focus-visible,
+.signal-details-modal-close:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 
 /* ============================================
    CONFIRMATION MODAL

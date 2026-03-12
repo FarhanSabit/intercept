@@ -1,6 +1,8 @@
-# Git
+# Git & CI
 .git
 .gitignore
+.github
+.claude
 
 # Python
 __pycache__
@@ -29,6 +31,19 @@ tests/
 .coverage
 htmlcov/
 .mypy_cache/
+.ruff_cache
+.DS_Store
+tasks/
+
+# Documentation
+*.md
+
+# Runtime data (mounted as volume)
+instance/
+data/
+
+# Build scripts
+build-multiarch.sh
 
 # Logs
 *.log

@@ -17,6 +17,8 @@ from typing import Any, Generator
 
 from flask import Blueprint, Response, jsonify, make_response, render_template, request
 
+from utils.responses import api_success, api_error
+
 # psycopg2 is optional - only needed for PostgreSQL history persistence
 try:
     import psycopg2
@@ -866,7 +868,7 @@ def start_adsb():
         gain = int(validate_gain(data.get('gain', '40')))
         device = validate_device_index(data.get('device', '0'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     # Check for remote SBS connection (e.g., remote dump1090)
     remote_sbs_host = data.get('remote_sbs_host')
@@ -878,7 +880,7 @@ def start_adsb():
             remote_sbs_host = validate_rtl_tcp_host(remote_sbs_host)
             remote_sbs_port = validate_rtl_tcp_port(remote_sbs_port)
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
 
         remote_addr = f"{remote_sbs_host}:{remote_sbs_port}"
         logger.info(f"Connecting to remote dump1090 SBS at {remote_addr}")
@@ -935,12 +937,12 @@ def start_adsb():
     if sdr_type == SDRType.RTL_SDR:
         dump1090_path = find_dump1090()
         if not dump1090_path:
-            return jsonify({'status': 'error', 'message': 'dump1090 not found. Install dump1090/dump1090-fa or ensure it is in /usr/local/bin/'})
+            return api_error('dump1090 not found. Install dump1090/dump1090-fa or ensure it is in /usr/local/bin/')
     else:
         # For LimeSDR/HackRF, check for readsb (dump1090 with SoapySDR support)
         dump1090_path = shutil.which('readsb') or find_dump1090()
         if not dump1090_path:
-            return jsonify({'status': 'error', 'message': f'readsb or dump1090 not found for {sdr_type.value}. Install readsb with SoapySDR support.'})
+            return api_error(f'readsb or dump1090 not found for {sdr_type.value}. Install readsb with SoapySDR support.')
 
     # Kill any stale app-started process (use process group to ensure full cleanup)
     if app_module.adsb_process:
@@ -1122,7 +1124,7 @@ def start_adsb():
         app_module.release_sdr_device(device_int, sdr_type_str)
         adsb_active_device = None
         adsb_active_sdr_type = None
-        return jsonify({'status': 'error', 'message': str(e)})
+        return api_error(str(e))
 
 
 @adsb_bp.route('/stop', methods=['POST'])
@@ -1233,7 +1235,7 @@ def adsb_history():
 def adsb_history_summary():
     """Summary stats for ADS-B history window."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return jsonify({'error': 'ADS-B history is disabled'}), 503
+        return api_error('ADS-B history is disabled', 503)
     _ensure_history_schema()
 
     since_minutes = _parse_int_param(request.args.get('since_minutes'), 1440, 1, 10080)
@@ -1256,14 +1258,14 @@ def adsb_history_summary():
         return jsonify(row)
     except Exception as exc:
         logger.warning("ADS-B history summary failed: %s", exc)
-        return jsonify({'error': 'History database unavailable'}), 503
+        return api_error('History database unavailable', 503)
 
 
 @adsb_bp.route('/history/aircraft')
 def adsb_history_aircraft():
     """List latest aircraft snapshots for a time window."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return jsonify({'error': 'ADS-B history is disabled'}), 503
+        return api_error('ADS-B history is disabled', 503)
     _ensure_history_schema()
 
     since_minutes = _parse_int_param(request.args.get('since_minutes'), 1440, 1, 10080)
@@ -1306,19 +1308,19 @@ def adsb_history_aircraft():
         return jsonify({'aircraft': rows, 'count': len(rows)})
     except Exception as exc:
         logger.warning("ADS-B history aircraft query failed: %s", exc)
-        return jsonify({'error': 'History database unavailable'}), 503
+        return api_error('History database unavailable', 503)
 
 
 @adsb_bp.route('/history/timeline')
 def adsb_history_timeline():
     """Timeline snapshots for a specific aircraft."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return jsonify({'error': 'ADS-B history is disabled'}), 503
+        return api_error('ADS-B history is disabled', 503)
     _ensure_history_schema()
 
     icao = (request.args.get('icao') or '').strip().upper()
     if not icao:
-        return jsonify({'error': 'icao is required'}), 400
+        return api_error('icao is required', 400)
 
     since_minutes = _parse_int_param(request.args.get('since_minutes'), 1440, 1, 10080)
     limit = _parse_int_param(request.args.get('limit'), 2000, 1, 20000)
@@ -1341,14 +1343,14 @@ def adsb_history_timeline():
         return jsonify({'icao': icao, 'timeline': rows, 'count': len(rows)})
     except Exception as exc:
         logger.warning("ADS-B history timeline query failed: %s", exc)
-        return jsonify({'error': 'History database unavailable'}), 503
+        return api_error('History database unavailable', 503)
 
 
 @adsb_bp.route('/history/messages')
 def adsb_history_messages():
     """Raw message history for a specific aircraft."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return jsonify({'error': 'ADS-B history is disabled'}), 503
+        return api_error('ADS-B history is disabled', 503)
     _ensure_history_schema()
 
     icao = (request.args.get('icao') or '').strip().upper()
@@ -1373,22 +1375,22 @@ def adsb_history_messages():
         return jsonify({'icao': icao, 'messages': rows, 'count': len(rows)})
     except Exception as exc:
         logger.warning("ADS-B history message query failed: %s", exc)
-        return jsonify({'error': 'History database unavailable'}), 503
+        return api_error('History database unavailable', 503)
 
 
 @adsb_bp.route('/history/export')
 def adsb_history_export():
     """Export ADS-B history data in CSV or JSON format."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return jsonify({'error': 'ADS-B history is disabled'}), 503
+        return api_error('ADS-B history is disabled', 503)
     _ensure_history_schema()
 
     export_format = str(request.args.get('format') or 'csv').strip().lower()
     export_type = str(request.args.get('type') or 'all').strip().lower()
     if export_format not in {'csv', 'json'}:
-        return jsonify({'error': 'format must be csv or json'}), 400
+        return api_error('format must be csv or json', 400)
     if export_type not in {'messages', 'snapshots', 'sessions', 'all'}:
-        return jsonify({'error': 'type must be messages, snapshots, sessions, or all'}), 400
+        return api_error('type must be messages, snapshots, sessions, or all', 400)
 
     scope, since_minutes, start, end = _parse_export_scope(request.args)
     icao = (request.args.get('icao') or '').strip().upper()
@@ -1501,7 +1503,7 @@ def adsb_history_export():
                     sessions = cur.fetchall()
     except Exception as exc:
         logger.warning("ADS-B history export failed: %s", exc)
-        return jsonify({'error': 'History database unavailable'}), 503
+        return api_error('History database unavailable', 503)
 
     exported_at = datetime.now(timezone.utc).isoformat()
     timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
@@ -1559,13 +1561,13 @@ def adsb_history_export():
 def adsb_history_prune():
     """Delete ADS-B history for a selected time range or entire dataset."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return jsonify({'error': 'ADS-B history is disabled'}), 503
+        return api_error('ADS-B history is disabled', 503)
     _ensure_history_schema()
 
     payload = request.get_json(silent=True) or {}
     mode = str(payload.get('mode') or 'range').strip().lower()
     if mode not in {'range', 'all'}:
-        return jsonify({'error': 'mode must be range or all'}), 400
+        return api_error('mode must be range or all', 400)
 
     try:
         with _get_history_connection() as conn:
@@ -1587,11 +1589,11 @@ def adsb_history_prune():
                 start = _parse_iso_datetime(payload.get('start'))
                 end = _parse_iso_datetime(payload.get('end'))
                 if start is None or end is None:
-                    return jsonify({'error': 'start and end ISO datetime values are required'}), 400
+                    return api_error('start and end ISO datetime values are required', 400)
                 if end <= start:
-                    return jsonify({'error': 'end must be after start'}), 400
+                    return api_error('end must be after start', 400)
                 if end - start > timedelta(days=31):
-                    return jsonify({'error': 'range cannot exceed 31 days'}), 400
+                    return api_error('range cannot exceed 31 days', 400)
 
                 cur.execute(
                     """
@@ -1623,7 +1625,7 @@ def adsb_history_prune():
                 })
     except Exception as exc:
         logger.warning("ADS-B history prune failed: %s", exc)
-        return jsonify({'error': 'History database unavailable'}), 503
+        return api_error('History database unavailable', 503)
 
 
 # ============================================
@@ -1668,7 +1670,7 @@ def aircraft_photo(registration: str):
 
     # Validate registration format (alphanumeric with dashes)
     if not registration or not all(c.isalnum() or c == '-' for c in registration):
-        return jsonify({'error': 'Invalid registration'}), 400
+        return api_error('Invalid registration', 400)
 
     try:
         # Planespotters.net public API
@@ -1701,7 +1703,7 @@ def aircraft_photo(registration: str):
 def get_aircraft_messages(icao: str):
     """Get correlated ACARS/VDL2 messages for an aircraft."""
     if not icao or not all(c in '0123456789ABCDEFabcdef' for c in icao):
-        return jsonify({'status': 'error', 'message': 'Invalid ICAO'}), 400
+        return api_error('Invalid ICAO', 400)
 
     aircraft = app_module.adsb_aircraft.get(icao.upper())
     callsign = aircraft.get('callsign') if aircraft else None
@@ -1722,4 +1724,4 @@ def get_aircraft_messages(icao: str):
     except Exception:
         pass
 
-    return jsonify({'status': 'success', 'icao': icao.upper(), **messages})
+    return api_success(data={'icao': icao.upper(), **messages})

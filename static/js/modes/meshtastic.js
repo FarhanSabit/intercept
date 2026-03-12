@@ -110,19 +110,27 @@ const Meshtastic = (function() {
         meshMap = L.map('meshMap').setView([defaultLat, defaultLon], 4);
         window.meshMap = meshMap;
 
-        // Use settings manager for tile layer (allows runtime changes)
+        // Add fallback tiles immediately so the map is visible instantly
+        const fallbackTiles = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            maxZoom: 19,
+            subdomains: 'abcd',
+            className: 'tile-layer-cyan'
+        }).addTo(meshMap);
+
+        // Upgrade tiles in background via Settings (with timeout fallback)
         if (typeof Settings !== 'undefined') {
-            // Wait for settings to load from server before applying tiles
-            await Settings.init();
-            Settings.createTileLayer().addTo(meshMap);
-            Settings.registerMap(meshMap);
-        } else {
-            L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-                maxZoom: 19,
-                subdomains: 'abcd',
-                className: 'tile-layer-cyan'
-            }).addTo(meshMap);
+            try {
+                await Promise.race([
+                    Settings.init(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
+                ]);
+                meshMap.removeLayer(fallbackTiles);
+                Settings.createTileLayer().addTo(meshMap);
+                Settings.registerMap(meshMap);
+            } catch (e) {
+                console.warn('Meshtastic: Settings init failed/timed out, using fallback tiles:', e);
+            }
         }
 
         // Handle resize

@@ -280,18 +280,19 @@ const SpyStations = (function() {
             showNotification('Tuning to ' + stationName, formatFrequency(freqKhz) + ' (' + tuneMode.toUpperCase() + ')');
         }
 
-        // Switch to spectrum waterfall mode and tune after mode init.
-        if (typeof switchMode === 'function') {
-            switchMode('waterfall');
-        } else if (typeof selectMode === 'function') {
-            selectMode('waterfall');
-        }
-
-        setTimeout(() => {
+        // Switch to spectrum waterfall mode and tune after init completes.
+        const doTune = () => {
             if (typeof Waterfall !== 'undefined' && typeof Waterfall.quickTune === 'function') {
                 Waterfall.quickTune(freqMhz, tuneMode);
             }
-        }, 220);
+        };
+
+        if (typeof switchMode === 'function') {
+            switchMode('waterfall').then(doTune);
+        } else if (typeof selectMode === 'function') {
+            selectMode('waterfall');
+            setTimeout(doTune, 300);
+        }
     }
 
     /**

@@ -12,6 +12,7 @@ from typing import Generator
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.logging import sensor_logger as logger
 from utils.validation import (
@@ -102,16 +103,13 @@ def start_rtlamr() -> Response:
 
     with app_module.rtlamr_lock:
         if app_module.rtlamr_process:
-            return jsonify({'status': 'error', 'message': 'RTLAMR already running'}), 409
+            return api_error('RTLAMR already running', 409)
 
         data = request.json or {}
         sdr_type_str = data.get('sdr_type', 'rtlsdr')
 
         if sdr_type_str != 'rtlsdr':
-            return jsonify({
-                'status': 'error',
-                'message': f'{sdr_type_str.replace("_", " ").title()} is not yet supported for this mode. Please use an RTL-SDR device.'
-            }), 400
+            return api_error(f'{sdr_type_str.replace("_", " ").title()} is not yet supported for this mode. Please use an RTL-SDR device.', 400)
 
         # Validate inputs
         try:
@@ -120,17 +118,13 @@ def start_rtlamr() -> Response:
             ppm = validate_ppm(data.get('ppm', '0'))
             device = validate_device_index(data.get('device', '0'))
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
 
         # Check if device is available
         device_int = int(device)
         error = app_module.claim_sdr_device(device_int, 'rtlamr', sdr_type_str)
         if error:
-            return jsonify({
-                'status': 'error',
-                'error_type': 'DEVICE_BUSY',
-                'message': error
-            }), 409
+            return api_error(error, 409, error_type='DEVICE_BUSY')
 
         rtlamr_active_device = device_int
         rtlamr_active_sdr_type = sdr_type_str
@@ -181,7 +175,7 @@ def start_rtlamr() -> Response:
                     if rtlamr_active_device is not None:
                         app_module.release_sdr_device(rtlamr_active_device, rtlamr_active_sdr_type)
                         rtlamr_active_device = None
-                    return jsonify({'status': 'error', 'message': f'Failed to start rtl_tcp: {e}'}), 500
+                    return api_error(f'Failed to start rtl_tcp: {e}', 500)
 
         # Wait for rtl_tcp to start outside lock
         if rtl_tcp_just_started:
@@ -253,7 +247,7 @@ def start_rtlamr() -> Response:
             if rtlamr_active_device is not None:
                 app_module.release_sdr_device(rtlamr_active_device, rtlamr_active_sdr_type)
                 rtlamr_active_device = None
-            return jsonify({'status': 'error', 'message': 'rtlamr not found. Install from https://github.com/bemasher/rtlamr'})
+            return api_error('rtlamr not found. Install from https://github.com/bemasher/rtlamr')
         except Exception as e:
             # If rtlamr fails, clean up rtl_tcp and release device
             with rtl_tcp_lock:
@@ -264,7 +258,7 @@ def start_rtlamr() -> Response:
             if rtlamr_active_device is not None:
                 app_module.release_sdr_device(rtlamr_active_device, rtlamr_active_sdr_type)
                 rtlamr_active_device = None
-            return jsonify({'status': 'error', 'message': str(e)})
+            return api_error(str(e))
 
 
 @rtlamr_bp.route('/stop_rtlamr', methods=['POST'])

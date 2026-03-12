@@ -13,6 +13,7 @@ from pathlib import Path
 
 from flask import Blueprint, Response, jsonify, request, send_file
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.logging import get_logger
 from utils.sse import sse_stream_fanout
@@ -102,10 +103,7 @@ def start_decoder():
     decoder = get_general_sstv_decoder()
 
     if decoder.decoder_available is None:
-        return jsonify({
-            'status': 'error',
-            'message': 'SSTV decoder not available. Install numpy and Pillow: pip install numpy Pillow',
-        }), 400
+        return api_error('SSTV decoder not available. Install numpy and Pillow: pip install numpy Pillow', 400)
 
     if decoder.is_running:
         return jsonify({
@@ -123,10 +121,7 @@ def start_decoder():
     sdr_type_str = data.get('sdr_type', 'rtlsdr')
 
     if sdr_type_str != 'rtlsdr':
-        return jsonify({
-            'status': 'error',
-            'message': f'{sdr_type_str.replace("_", " ").title()} is not yet supported for this mode. Please use an RTL-SDR device.'
-        }), 400
+        return api_error(f'{sdr_type_str.replace("_", " ").title()} is not yet supported for this mode. Please use an RTL-SDR device.', 400)
 
     frequency = data.get('frequency')
     modulation = data.get('modulation')
@@ -134,23 +129,14 @@ def start_decoder():
 
     # Validate frequency
     if frequency is None:
-        return jsonify({
-            'status': 'error',
-            'message': 'Frequency is required',
-        }), 400
+        return api_error('Frequency is required', 400)
 
     try:
         frequency = float(frequency)
         if not (1 <= frequency <= 500):
-            return jsonify({
-                'status': 'error',
-                'message': 'Frequency must be between 1-500 MHz (HF requires upconverter for RTL-SDR)',
-            }), 400
+            return api_error('Frequency must be between 1-500 MHz (HF requires upconverter for RTL-SDR)', 400)
     except (TypeError, ValueError):
-        return jsonify({
-            'status': 'error',
-            'message': 'Invalid frequency',
-        }), 400
+        return api_error('Invalid frequency', 400)
 
     # Auto-detect modulation from frequency table if not specified
     if not modulation:
@@ -158,21 +144,14 @@ def start_decoder():
 
     # Validate modulation
     if modulation not in ('fm', 'usb', 'lsb'):
-        return jsonify({
-            'status': 'error',
-            'message': 'Modulation must be fm, usb, or lsb',
-        }), 400
+        return api_error('Modulation must be fm, usb, or lsb', 400)
 
     # Claim SDR device
     global _sstv_general_active_device, _sstv_general_active_sdr_type
     device_int = int(device_index)
     error = app_module.claim_sdr_device(device_int, 'sstv_general', sdr_type_str)
     if error:
-        return jsonify({
-            'status': 'error',
-            'error_type': 'DEVICE_BUSY',
-            'message': error,
-        }), 409
+        return api_error(error, 409, error_type='DEVICE_BUSY')
 
     # Set callback and start
     decoder.set_callback(_progress_callback)
@@ -193,10 +172,7 @@ def start_decoder():
         })
     else:
         app_module.release_sdr_device(device_int, sdr_type_str)
-        return jsonify({
-            'status': 'error',
-            'message': 'Failed to start decoder',
-        }), 500
+        return api_error('Failed to start decoder', 500)
 
 
 @sstv_general_bp.route('/stop', methods=['POST'])
@@ -237,15 +213,15 @@ def get_image(filename: str):
 
     # Security: only allow alphanumeric filenames with .png extension
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not filename.endswith('.png'):
-        return jsonify({'status': 'error', 'message': 'Only PNG files supported'}), 400
+        return api_error('Only PNG files supported', 400)
 
     image_path = decoder._output_dir / filename
 
     if not image_path.exists():
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
     return send_file(image_path, mimetype='image/png')
 
@@ -257,15 +233,15 @@ def download_image(filename: str):
 
     # Security: only allow alphanumeric filenames with .png extension
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not filename.endswith('.png'):
-        return jsonify({'status': 'error', 'message': 'Only PNG files supported'}), 400
+        return api_error('Only PNG files supported', 400)
 
     image_path = decoder._output_dir / filename
 
     if not image_path.exists():
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
     return send_file(image_path, mimetype='image/png', as_attachment=True, download_name=filename)
 
@@ -277,15 +253,15 @@ def delete_image(filename: str):
 
     # Security: only allow alphanumeric filenames with .png extension
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not filename.endswith('.png'):
-        return jsonify({'status': 'error', 'message': 'Only PNG files supported'}), 400
+        return api_error('Only PNG files supported', 400)
 
     if decoder.delete_image(filename):
         return jsonify({'status': 'ok'})
     else:
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
 
 @sstv_general_bp.route('/images', methods=['DELETE'])
@@ -322,18 +298,12 @@ def stream_progress():
 def decode_file():
     """Decode SSTV from an uploaded audio file."""
     if 'audio' not in request.files:
-        return jsonify({
-            'status': 'error',
-            'message': 'No audio file provided',
-        }), 400
+        return api_error('No audio file provided', 400)
 
     audio_file = request.files['audio']
 
     if not audio_file.filename:
-        return jsonify({
-            'status': 'error',
-            'message': 'No file selected',
-        }), 400
+        return api_error('No file selected', 400)
 
     import tempfile
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
@@ -352,10 +322,7 @@ def decode_file():
 
     except Exception as e:
         logger.error(f"Error decoding file: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e),
-        }), 500
+        return api_error(str(e), 500)
 
     finally:
         try:

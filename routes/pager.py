@@ -18,6 +18,7 @@ from typing import Any, Generator
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.logging import pager_logger as logger
 from utils.validation import (
@@ -275,7 +276,7 @@ def start_decoding() -> Response:
 
     with app_module.process_lock:
         if app_module.current_process:
-            return jsonify({'status': 'error', 'message': 'Already running'}), 409
+            return api_error('Already running', 409)
 
         data = request.json or {}
 
@@ -286,7 +287,7 @@ def start_decoding() -> Response:
             ppm = validate_ppm(data.get('ppm', '0'))
             device = validate_device_index(data.get('device', '0'))
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
 
         squelch = data.get('squelch', '0')
         try:
@@ -294,7 +295,7 @@ def start_decoding() -> Response:
             if not 0 <= squelch <= 1000:
                 raise ValueError("Squelch must be between 0 and 1000")
         except (ValueError, TypeError):
-            return jsonify({'status': 'error', 'message': 'Invalid squelch value'}), 400
+            return api_error('Invalid squelch value', 400)
 
         # Check for rtl_tcp (remote SDR) connection
         rtl_tcp_host = data.get('rtl_tcp_host')
@@ -308,11 +309,7 @@ def start_decoding() -> Response:
             device_int = int(device)
             error = app_module.claim_sdr_device(device_int, 'pager', sdr_type_str)
             if error:
-                return jsonify({
-                    'status': 'error',
-                    'error_type': 'DEVICE_BUSY',
-                    'message': error
-                }), 409
+                return api_error(error, 409, error_type='DEVICE_BUSY')
             pager_active_device = device_int
             pager_active_sdr_type = sdr_type_str
 
@@ -324,7 +321,7 @@ def start_decoding() -> Response:
                 app_module.release_sdr_device(pager_active_device, pager_active_sdr_type or 'rtlsdr')
                 pager_active_device = None
                 pager_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': 'Protocols must be a list'}), 400
+            return api_error('Protocols must be a list', 400)
         protocols = [p for p in protocols if p in valid_protocols]
         if not protocols:
             protocols = valid_protocols
@@ -360,7 +357,7 @@ def start_decoding() -> Response:
                 rtl_tcp_host = validate_rtl_tcp_host(rtl_tcp_host)
                 rtl_tcp_port = validate_rtl_tcp_port(rtl_tcp_port)
             except ValueError as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 400
+                return api_error(str(e), 400)
 
             sdr_device = SDRFactory.create_network_device(rtl_tcp_host, rtl_tcp_port)
             logger.info(f"Using remote SDR: rtl_tcp://{rtl_tcp_host}:{rtl_tcp_port}")
@@ -385,7 +382,7 @@ def start_decoding() -> Response:
 
         multimon_path = get_tool_path('multimon-ng')
         if not multimon_path:
-            return jsonify({'status': 'error', 'message': 'multimon-ng not found'}), 400
+            return api_error('multimon-ng not found', 400)
         multimon_cmd = [multimon_path, '-t', 'raw'] + decoders + ['-f', 'alpha', '-']
 
         full_cmd = ' '.join(rtl_cmd) + ' | ' + ' '.join(multimon_cmd)
@@ -466,7 +463,7 @@ def start_decoding() -> Response:
                 app_module.release_sdr_device(pager_active_device, pager_active_sdr_type or 'rtlsdr')
                 pager_active_device = None
                 pager_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': f'Tool not found: {e.filename}'})
+            return api_error(f'Tool not found: {e.filename}')
         except Exception as e:
             # Kill orphaned rtl_fm process if it was started
             try:
@@ -482,7 +479,7 @@ def start_decoding() -> Response:
                 app_module.release_sdr_device(pager_active_device, pager_active_sdr_type or 'rtlsdr')
                 pager_active_device = None
                 pager_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': str(e)})
+            return api_error(str(e))
 
 
 @pager_bp.route('/stop', methods=['POST'])
@@ -562,16 +559,16 @@ def toggle_logging() -> Response:
             is_in_logs = str(requested_path).startswith(str(logs_dir))
 
             if not (is_in_cwd or is_in_logs):
-                return jsonify({'status': 'error', 'message': 'Invalid log file path'}), 400
+                return api_error('Invalid log file path', 400)
 
             # Ensure it's not a directory
             if requested_path.is_dir():
-                return jsonify({'status': 'error', 'message': 'Log file path must be a file, not a directory'}), 400
+                return api_error('Log file path must be a file, not a directory', 400)
 
             app_module.log_file_path = str(requested_path)
         except (ValueError, OSError) as e:
             logger.warning(f"Invalid log file path: {e}")
-            return jsonify({'status': 'error', 'message': 'Invalid log file path'}), 400
+            return api_error('Invalid log file path', 400)
 
     return jsonify({'logging': app_module.logging_enabled, 'log_file': app_module.log_file_path})
 

@@ -25,20 +25,20 @@
     --font-2xl: clamp(24px, 6vw, 40px);
 
     /* Header height for calculations */
-    --header-height: 52px;
+    --header-height: 48px;
     --nav-height: 44px;
 }
 
 @media (min-width: 768px) {
     :root {
-        --header-height: 60px;
+        --header-height: 48px;
         --nav-height: 48px;
     }
 }
 
 @media (min-width: 1024px) {
     :root {
-        --header-height: 96px;
+        --header-height: 48px;
         --nav-height: 0px;
     }
 }
@@ -632,16 +632,17 @@
         font-size: 16px;
     }
 
-    .app-shell header h1 .tagline,
-    .app-shell header h1 .version-badge {
+    .app-shell header h1 .tagline {
         display: none;
     }
 
-    .app-shell header .subtitle {
-        font-size: 10px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    .app-shell header .version-badge {
+        display: none;
+    }
+
+    .app-shell header .active-mode-indicator {
+        font-size: 9px;
+        padding: 3px 8px;
     }
 
     .app-shell header .logo svg {
@@ -691,18 +692,18 @@
     }
 
     .app-shell .welcome-header {
-        flex-direction: column;
-        text-align: center;
-        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px 10px;
     }
 
     .app-shell .welcome-logo svg {
-        width: 50px;
-        height: 50px;
+        width: 40px;
+        height: 40px;
     }
 
     .app-shell .welcome-title {
-        font-size: 24px;
+        font-size: 1.2rem;
     }
 
     .app-shell .welcome-content {

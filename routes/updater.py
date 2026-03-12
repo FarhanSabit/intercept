@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, Response, jsonify, request
 
+from utils.responses import api_success, api_error
 from utils.logging import get_logger
 from utils.updater import (
     check_for_updates,
@@ -39,10 +40,7 @@ def check_updates() -> Response:
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error checking for updates: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @updater_bp.route('/status', methods=['GET'])
@@ -61,10 +59,7 @@ def update_status() -> Response:
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error getting update status: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @updater_bp.route('/update', methods=['POST'])
@@ -100,10 +95,7 @@ def do_update() -> Response:
 
     except Exception as e:
         logger.error(f"Error performing update: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @updater_bp.route('/dismiss', methods=['POST'])
@@ -124,20 +116,14 @@ def dismiss_notification() -> Response:
     version = data.get('version')
 
     if not version:
-        return jsonify({
-            'success': False,
-            'error': 'Version is required'
-        }), 400
+        return api_error('Version is required', 400)
 
     try:
         result = dismiss_update(version)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error dismissing update: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @updater_bp.route('/restart', methods=['POST'])

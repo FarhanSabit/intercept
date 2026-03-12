@@ -40,6 +40,8 @@ def get_connection() -> sqlite3.Connection:
             _local.connection.row_factory = sqlite3.Row
             # Enable foreign keys
             _local.connection.execute('PRAGMA foreign_keys = ON')
+            # Use WAL mode for better concurrent read/write performance
+            _local.connection.execute('PRAGMA journal_mode = WAL')
         except sqlite3.OperationalError as e:
             logger.error(
                 f"Cannot open database at {db_path}: {e}. "
@@ -254,12 +256,23 @@ def init_db() -> None:
         cursor = conn.execute('SELECT COUNT(*) FROM users')
         if cursor.fetchone()[0] == 0:
             from config import ADMIN_USERNAME, ADMIN_PASSWORD
-            
+            import secrets as _secrets
+
+            admin_password = ADMIN_PASSWORD
+            if not admin_password:
+                admin_password = _secrets.token_urlsafe(16)
+                logger.warning(f"Generated admin password: {admin_password}")
+                logger.warning("Set INTERCEPT_ADMIN_PASSWORD env var to use a fixed password.")
+                try:
+                    pw_path = Path('instance/.initial_password')
+                    pw_path.parent.mkdir(parents=True, exist_ok=True)
+                    pw_path.write_text(f"{ADMIN_USERNAME}:{admin_password}\n")
+                except OSError as e:
+                    logger.warning(f"Could not write initial password file: {e}")
+
             logger.info(f"Creating default admin user: {ADMIN_USERNAME}")
-            
-            # Password hashing
-            hashed_pw = generate_password_hash(ADMIN_PASSWORD)
-            
+            hashed_pw = generate_password_hash(admin_password)
+
             conn.execute('''
                 INSERT INTO users (username, password_hash, role)
                 VALUES (?, ?, ?)

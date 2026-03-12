@@ -18,6 +18,7 @@ from typing import Any, Generator
 from flask import Blueprint, Response, jsonify, request
 
 import app as app_module
+from utils.responses import api_success, api_error
 from utils.acars_translator import translate_message
 from utils.constants import (
     PROCESS_START_WAIT,
@@ -181,18 +182,12 @@ def start_vdl2() -> Response:
 
     with app_module.vdl2_lock:
         if app_module.vdl2_process and app_module.vdl2_process.poll() is None:
-            return jsonify({
-                'status': 'error',
-                'message': 'VDL2 decoder already running'
-            }), 409
+            return api_error('VDL2 decoder already running', 409)
 
     # Check for dumpvdl2
     dumpvdl2_path = find_dumpvdl2()
     if not dumpvdl2_path:
-        return jsonify({
-            'status': 'error',
-            'message': 'dumpvdl2 not found. Install from: https://github.com/szpajder/dumpvdl2'
-        }), 400
+        return api_error('dumpvdl2 not found. Install from: https://github.com/szpajder/dumpvdl2', 400)
 
     data = request.json or {}
 
@@ -202,7 +197,7 @@ def start_vdl2() -> Response:
         gain = validate_gain(data.get('gain', '40'))
         ppm = validate_ppm(data.get('ppm', '0'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     # Resolve SDR type for device selection
     sdr_type_str = data.get('sdr_type', 'rtlsdr')
@@ -215,11 +210,7 @@ def start_vdl2() -> Response:
     device_int = int(device)
     error = app_module.claim_sdr_device(device_int, 'vdl2', sdr_type_str)
     if error:
-        return jsonify({
-            'status': 'error',
-            'error_type': 'DEVICE_BUSY',
-            'message': error
-        }), 409
+        return api_error(error, 409, error_type='DEVICE_BUSY')
 
     vdl2_active_device = device_int
     vdl2_active_sdr_type = sdr_type_str
@@ -312,7 +303,7 @@ def start_vdl2() -> Response:
             if stderr:
                 error_msg += f': {stderr[:500]}'
             logger.error(error_msg)
-            return jsonify({'status': 'error', 'message': error_msg}), 500
+            return api_error(error_msg, 500)
 
         app_module.vdl2_process = process
         register_process(process)
@@ -339,7 +330,7 @@ def start_vdl2() -> Response:
             vdl2_active_device = None
             vdl2_active_sdr_type = None
         logger.error(f"Failed to start VDL2 decoder: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @vdl2_bp.route('/stop', methods=['POST'])
@@ -349,10 +340,7 @@ def stop_vdl2() -> Response:
 
     with app_module.vdl2_lock:
         if not app_module.vdl2_process:
-            return jsonify({
-                'status': 'error',
-                'message': 'VDL2 decoder not running'
-            }), 400
+            return api_error('VDL2 decoder not running', 400)
 
         try:
             app_module.vdl2_process.terminate()

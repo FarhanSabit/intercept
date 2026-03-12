@@ -15,6 +15,7 @@ from typing import Any, Generator
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.dependencies import check_tool, get_tool_path
 from utils.logging import wifi_logger as logger
@@ -45,6 +46,24 @@ from utils.constants import (
 )
 
 wifi_bp = Blueprint('wifi', __name__, url_prefix='/wifi')
+
+# --- v1 deprecation ---
+# These endpoints are deprecated in favor of /wifi/v2/*.
+# Frontend still uses v1, so they remain active.
+# Migration: switch frontend to v2 endpoints, then remove this file.
+_v1_deprecation_logged = set()
+
+
+@wifi_bp.after_request
+def _add_deprecation_header(response):
+    """Add X-Deprecated header to all v1 WiFi responses."""
+    response.headers['X-Deprecated'] = 'Use /wifi/v2/* endpoints instead'
+    endpoint = request.endpoint or ''
+    if endpoint not in _v1_deprecation_logged:
+        _v1_deprecation_logged.add(endpoint)
+        logger.warning(f"Deprecated v1 WiFi endpoint called: {request.path} — migrate to /wifi/v2/*")
+    return response
+
 
 # PMKID process state
 pmkid_process = None
@@ -455,7 +474,7 @@ def toggle_monitor_mode():
     try:
         interface = validate_network_interface(data.get('interface'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     if action == 'start':
         if check_tool('airmon-ng'):
@@ -575,20 +594,17 @@ def toggle_monitor_mode():
                         all_wireless = [f for f in os.listdir('/sys/class/net')
                                        if os.path.exists(f'/sys/class/net/{f}/wireless') or 'mon' in f or f.startswith('wl')]
                         logger.error(f"Monitor interface not found. Tried: {monitor_iface}. Available: {all_wireless}")
-                        return jsonify({
-                            'status': 'error',
-                            'message': f'Monitor interface not created. airmon-ng output: {output[:500]}. Available interfaces: {all_wireless}'
-                        })
+                        return api_error(f'Monitor interface not created. airmon-ng output: {output[:500]}. Available interfaces: {all_wireless}')
 
                 app_module.wifi_monitor_interface = monitor_iface
                 app_module.wifi_queue.put({'type': 'info', 'text': f'Monitor mode enabled on {app_module.wifi_monitor_interface}'})
                 logger.info(f"Monitor mode enabled on {monitor_iface}")
-                return jsonify({'status': 'success', 'monitor_interface': app_module.wifi_monitor_interface})
+                return api_success(data={'monitor_interface': app_module.wifi_monitor_interface})
 
             except Exception as e:
                 import traceback
                 logger.error(f"Error enabling monitor mode: {e}", exc_info=True)
-                return jsonify({'status': 'error', 'message': str(e)})
+                return api_error(str(e))
 
         elif check_tool('iw'):
             try:
@@ -596,11 +612,11 @@ def toggle_monitor_mode():
                 subprocess.run(['iw', interface, 'set', 'monitor', 'control'], capture_output=True)
                 subprocess.run(['ip', 'link', 'set', interface, 'up'], capture_output=True)
                 app_module.wifi_monitor_interface = interface
-                return jsonify({'status': 'success', 'monitor_interface': interface})
+                return api_success(data={'monitor_interface': interface})
             except Exception as e:
-                return jsonify({'status': 'error', 'message': str(e)})
+                return api_error(str(e))
         else:
-            return jsonify({'status': 'error', 'message': 'No monitor mode tools available.'})
+            return api_error('No monitor mode tools available.')
 
     else:  # stop
         if check_tool('airmon-ng'):
@@ -609,20 +625,20 @@ def toggle_monitor_mode():
                 subprocess.run([airmon_path, 'stop', app_module.wifi_monitor_interface or interface],
                                capture_output=True, text=True, timeout=15)
                 app_module.wifi_monitor_interface = None
-                return jsonify({'status': 'success', 'message': 'Monitor mode disabled'})
+                return api_success(message='Monitor mode disabled')
             except Exception as e:
-                return jsonify({'status': 'error', 'message': str(e)})
+                return api_error(str(e))
         elif check_tool('iw'):
             try:
                 subprocess.run(['ip', 'link', 'set', interface, 'down'], capture_output=True)
                 subprocess.run(['iw', interface, 'set', 'type', 'managed'], capture_output=True)
                 subprocess.run(['ip', 'link', 'set', interface, 'up'], capture_output=True)
                 app_module.wifi_monitor_interface = None
-                return jsonify({'status': 'success', 'message': 'Monitor mode disabled'})
+                return api_success(message='Monitor mode disabled')
             except Exception as e:
-                return jsonify({'status': 'error', 'message': str(e)})
+                return api_error(str(e))
 
-    return jsonify({'status': 'error', 'message': 'Unknown action'})
+    return api_error('Unknown action')
 
 
 @wifi_bp.route('/scan/start', methods=['POST'])
@@ -630,7 +646,7 @@ def start_wifi_scan():
     """Start WiFi scanning with airodump-ng."""
     with app_module.wifi_lock:
         if app_module.wifi_process:
-            return jsonify({'status': 'error', 'message': 'Scan already running'})
+            return api_error('Scan already running')
 
         data = request.json
         channel = data.get('channel')
@@ -643,21 +659,18 @@ def start_wifi_scan():
             try:
                 interface = validate_network_interface(interface)
             except ValueError as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 400
+                return api_error(str(e), 400)
         else:
             interface = app_module.wifi_monitor_interface
 
         if not interface:
-            return jsonify({'status': 'error', 'message': 'No monitor interface available.'})
+            return api_error('No monitor interface available.')
 
         # Verify interface exists
         if not os.path.exists(f'/sys/class/net/{interface}'):
             all_wireless = [f for f in os.listdir('/sys/class/net')
                            if os.path.exists(f'/sys/class/net/{f}/wireless') or 'mon' in f or f.startswith('wl')]
-            return jsonify({
-                'status': 'error',
-                'message': f'Interface "{interface}" does not exist. Available: {all_wireless}'
-            })
+            return api_error(f'Interface "{interface}" does not exist. Available: {all_wireless}')
 
         app_module.wifi_networks = {}
         app_module.wifi_clients = {}
@@ -690,7 +703,7 @@ def start_wifi_scan():
             try:
                 channel_list = _parse_channel_list(channels)
             except ValueError as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 400
+                return api_error(str(e), 400)
 
         if channel_list:
             cmd.extend(['-c', ','.join(str(c) for c in channel_list)])
@@ -723,7 +736,7 @@ def start_wifi_scan():
                     error_msg = 'Permission denied. Try running with sudo.'
 
                 logger.error(f"airodump-ng failed for interface '{interface}': {error_msg}")
-                return jsonify({'status': 'error', 'message': error_msg, 'interface': interface})
+                return api_error(error_msg)
 
             thread = threading.Thread(target=stream_airodump_output, args=(app_module.wifi_process, csv_path))
             thread.daemon = True
@@ -734,9 +747,9 @@ def start_wifi_scan():
             return jsonify({'status': 'started', 'interface': interface})
 
         except FileNotFoundError:
-            return jsonify({'status': 'error', 'message': 'airodump-ng not found.'})
+            return api_error('airodump-ng not found.')
         except Exception as e:
-            return jsonify({'status': 'error', 'message': str(e)})
+            return api_error(str(e))
 
 
 @wifi_bp.route('/scan/stop', methods=['POST'])
@@ -768,18 +781,18 @@ def send_deauth():
         try:
             interface = validate_network_interface(interface)
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
     else:
         interface = app_module.wifi_monitor_interface
 
     if not target_bssid:
-        return jsonify({'status': 'error', 'message': 'Target BSSID required'})
+        return api_error('Target BSSID required')
 
     if not is_valid_mac(target_bssid):
-        return jsonify({'status': 'error', 'message': 'Invalid BSSID format'})
+        return api_error('Invalid BSSID format')
 
     if not is_valid_mac(target_client):
-        return jsonify({'status': 'error', 'message': 'Invalid client MAC format'})
+        return api_error('Invalid client MAC format')
 
     try:
         count = int(count)
@@ -789,10 +802,10 @@ def send_deauth():
         count = 5
 
     if not interface:
-        return jsonify({'status': 'error', 'message': 'No monitor interface'})
+        return api_error('No monitor interface')
 
     if not check_tool('aireplay-ng'):
-        return jsonify({'status': 'error', 'message': 'aireplay-ng not found'})
+        return api_error('aireplay-ng not found')
 
     try:
         aireplay_path = get_tool_path('aireplay-ng')
@@ -809,14 +822,14 @@ def send_deauth():
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
-            return jsonify({'status': 'success', 'message': f'Sent {count} deauth packets'})
+            return api_success(message=f'Sent {count} deauth packets')
         else:
-            return jsonify({'status': 'error', 'message': result.stderr})
+            return api_error(result.stderr)
 
     except subprocess.TimeoutExpired:
-        return jsonify({'status': 'success', 'message': 'Deauth sent (timed out)'})
+        return api_success(message='Deauth sent (timed out)')
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return api_error(str(e))
 
 
 @wifi_bp.route('/handshake/capture', methods=['POST'])
@@ -832,22 +845,22 @@ def capture_handshake():
         try:
             interface = validate_network_interface(interface)
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
     else:
         interface = app_module.wifi_monitor_interface
 
     if not target_bssid or not channel:
-        return jsonify({'status': 'error', 'message': 'BSSID and channel required'})
+        return api_error('BSSID and channel required')
 
     if not is_valid_mac(target_bssid):
-        return jsonify({'status': 'error', 'message': 'Invalid BSSID format'})
+        return api_error('Invalid BSSID format')
 
     if not is_valid_channel(channel):
-        return jsonify({'status': 'error', 'message': 'Invalid channel'})
+        return api_error('Invalid channel')
 
     with app_module.wifi_lock:
         if app_module.wifi_process:
-            return jsonify({'status': 'error', 'message': 'Scan already running.'})
+            return api_error('Scan already running.')
 
         capture_path = f'/tmp/intercept_handshake_{target_bssid.replace(":", "")}'
 
@@ -866,7 +879,7 @@ def capture_handshake():
             app_module.wifi_queue.put({'type': 'info', 'text': f'Capturing handshakes for {target_bssid}'})
             return jsonify({'status': 'started', 'capture_file': capture_path + '-01.cap'})
         except Exception as e:
-            return jsonify({'status': 'error', 'message': str(e)})
+            return api_error(str(e))
 
 
 @wifi_bp.route('/handshake/status', methods=['POST'])
@@ -877,7 +890,7 @@ def check_handshake_status():
     target_bssid = data.get('bssid', '')
 
     if not capture_file.startswith('/tmp/intercept_handshake_') or '..' in capture_file:
-        return jsonify({'status': 'error', 'message': 'Invalid capture file path'})
+        return api_error('Invalid capture file path')
 
     if not os.path.exists(capture_file):
         with app_module.wifi_lock:
@@ -951,19 +964,19 @@ def capture_pmkid():
         try:
             interface = validate_network_interface(interface)
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
     else:
         interface = app_module.wifi_monitor_interface
 
     if not target_bssid:
-        return jsonify({'status': 'error', 'message': 'BSSID required'})
+        return api_error('BSSID required')
 
     if not is_valid_mac(target_bssid):
-        return jsonify({'status': 'error', 'message': 'Invalid BSSID format'})
+        return api_error('Invalid BSSID format')
 
     with pmkid_lock:
         if pmkid_process and pmkid_process.poll() is None:
-            return jsonify({'status': 'error', 'message': 'PMKID capture already running'})
+            return api_error('PMKID capture already running')
 
         capture_path = f'/tmp/intercept_pmkid_{target_bssid.replace(":", "")}.pcapng'
         filter_file = f'/tmp/pmkid_filter_{target_bssid.replace(":", "")}'
@@ -986,9 +999,9 @@ def capture_pmkid():
             pmkid_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             return jsonify({'status': 'started', 'file': capture_path})
         except FileNotFoundError:
-            return jsonify({'status': 'error', 'message': 'hcxdumptool not found.'})
+            return api_error('hcxdumptool not found.')
         except Exception as e:
-            return jsonify({'status': 'error', 'message': str(e)})
+            return api_error(str(e))
 
 
 @wifi_bp.route('/pmkid/status', methods=['POST'])
@@ -998,7 +1011,7 @@ def check_pmkid_status():
     capture_file = data.get('file', '')
 
     if not capture_file.startswith('/tmp/intercept_pmkid_') or '..' in capture_file:
-        return jsonify({'status': 'error', 'message': 'Invalid capture file path'})
+        return api_error('Invalid capture file path')
 
     if not os.path.exists(capture_file):
         return jsonify({'pmkid_found': False, 'file_exists': False})
@@ -1054,23 +1067,23 @@ def crack_handshake():
 
     # Validate paths to prevent path traversal
     if not capture_file.startswith('/tmp/intercept_handshake_') or '..' in capture_file:
-        return jsonify({'status': 'error', 'message': 'Invalid capture file path'}), 400
+        return api_error('Invalid capture file path', 400)
 
     if '..' in wordlist:
-        return jsonify({'status': 'error', 'message': 'Invalid wordlist path'}), 400
+        return api_error('Invalid wordlist path', 400)
 
     if not os.path.exists(capture_file):
-        return jsonify({'status': 'error', 'message': 'Capture file not found'}), 404
+        return api_error('Capture file not found', 404)
 
     if not os.path.exists(wordlist):
-        return jsonify({'status': 'error', 'message': 'Wordlist file not found'}), 404
+        return api_error('Wordlist file not found', 404)
 
     if target_bssid and not is_valid_mac(target_bssid):
-        return jsonify({'status': 'error', 'message': 'Invalid BSSID format'}), 400
+        return api_error('Invalid BSSID format', 400)
 
     aircrack_path = get_tool_path('aircrack-ng')
     if not aircrack_path:
-        return jsonify({'status': 'error', 'message': 'aircrack-ng not found'}), 500
+        return api_error('aircrack-ng not found', 500)
 
     try:
         cmd = [aircrack_path, '-a', '2', '-w', wordlist]
@@ -1099,8 +1112,7 @@ def crack_handshake():
             if match:
                 password = match.group(1)
                 logger.info(f"Password cracked for {target_bssid}: {password}")
-                return jsonify({
-                    'status': 'success',
+                return api_success(data={
                     'password': password,
                     'bssid': target_bssid
                 })
@@ -1118,7 +1130,7 @@ def crack_handshake():
         })
     except Exception as e:
         logger.error(f"Crack error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/networks')
@@ -1189,7 +1201,7 @@ def get_v2_capabilities():
         })
     except Exception as e:
         logger.exception("Error checking capabilities")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/scan/quick', methods=['POST'])
@@ -1220,7 +1232,7 @@ def v2_quick_scan():
         })
     except Exception as e:
         logger.exception("Error in quick scan")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/scan/start', methods=['POST'])
@@ -1239,10 +1251,10 @@ def v2_start_scan():
             return jsonify({'status': 'started'})
         else:
             status = scanner.get_status()
-            return jsonify({'error': status.error or 'Failed to start scan'}), 400
+            return api_error(status.error or 'Failed to start scan', 400)
     except Exception as e:
         logger.exception("Error starting deep scan")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/scan/stop', methods=['POST'])
@@ -1254,7 +1266,7 @@ def v2_stop_scan():
         return jsonify({'status': 'stopped'})
     except Exception as e:
         logger.exception("Error stopping scan")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/scan/status')
@@ -1274,7 +1286,7 @@ def v2_scan_status():
         })
     except Exception as e:
         logger.exception("Error getting scan status")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/networks')
@@ -1289,7 +1301,7 @@ def v2_get_networks():
         })
     except Exception as e:
         logger.exception("Error getting networks")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/clients')
@@ -1326,7 +1338,7 @@ def v2_get_clients():
         })
     except Exception as e:
         logger.exception("Error getting clients")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/probes')
@@ -1341,7 +1353,7 @@ def v2_get_probes():
         })
     except Exception as e:
         logger.exception("Error getting probes")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/channels')
@@ -1357,7 +1369,7 @@ def v2_get_channels():
         })
     except Exception as e:
         logger.exception("Error getting channel stats")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/stream')
@@ -1448,11 +1460,11 @@ def v2_export():
             return response
 
         else:
-            return jsonify({'error': f'Unknown format: {format_type}'}), 400
+            return api_error(f'Unknown format: {format_type}', 400)
 
     except Exception as e:
         logger.exception("Error exporting data")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/baseline/set', methods=['POST'])
@@ -1464,7 +1476,7 @@ def v2_set_baseline():
         return jsonify({'status': 'baseline_set', 'count': len(scanner._baseline_networks)})
     except Exception as e:
         logger.exception("Error setting baseline")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/baseline/clear', methods=['POST'])
@@ -1476,7 +1488,7 @@ def v2_clear_baseline():
         return jsonify({'status': 'baseline_cleared'})
     except Exception as e:
         logger.exception("Error clearing baseline")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/clear', methods=['POST'])
@@ -1488,7 +1500,7 @@ def v2_clear_data():
         return jsonify({'status': 'cleared'})
     except Exception as e:
         logger.exception("Error clearing data")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 # =============================================================================
@@ -1535,7 +1547,7 @@ def v2_deauth_status():
         })
     except Exception as e:
         logger.exception("Error getting deauth status")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/deauth/stream')
@@ -1600,7 +1612,7 @@ def v2_deauth_alerts():
         })
     except Exception as e:
         logger.exception("Error getting deauth alerts")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @wifi_bp.route('/v2/deauth/clear', methods=['POST'])
@@ -1620,4 +1632,4 @@ def v2_deauth_clear():
         return jsonify({'status': 'cleared'})
     except Exception as e:
         logger.exception("Error clearing deauth alerts")
-        return jsonify({'error': str(e)}), 500
+        return api_error(str(e), 500)

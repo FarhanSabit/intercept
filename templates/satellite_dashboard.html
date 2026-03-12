@@ -503,20 +503,29 @@
                 worldCopyJump: true
             });
 
-            // Use settings manager for tile layer (allows runtime changes)
             window.groundMap = groundMap;
+
+            // Add fallback tiles immediately so the map is visible instantly
+            const fallbackTiles = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+                maxZoom: 19,
+                subdomains: 'abcd',
+                className: 'tile-layer-cyan'
+            }).addTo(groundMap);
+
+            // Upgrade tiles in background via Settings (with timeout fallback)
             if (typeof Settings !== 'undefined') {
-                // Wait for settings to load from server before applying tiles
-                await Settings.init();
-                Settings.createTileLayer().addTo(groundMap);
-                Settings.registerMap(groundMap);
-            } else {
-                L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-                    maxZoom: 19,
-                    subdomains: 'abcd',
-                    className: 'tile-layer-cyan'
-                }).addTo(groundMap);
+                try {
+                    await Promise.race([
+                        Settings.init(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
+                    ]);
+                    groundMap.removeLayer(fallbackTiles);
+                    Settings.createTileLayer().addTo(groundMap);
+                    Settings.registerMap(groundMap);
+                } catch (e) {
+                    console.warn('Satellite: Settings init failed/timed out, using fallback tiles:', e);
+                }
             }
 
             const lat = parseFloat(document.getElementById('obsLat')?.value);

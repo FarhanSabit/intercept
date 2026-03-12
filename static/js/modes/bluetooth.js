@@ -895,6 +895,7 @@ const BluetoothMode = (function() {
 
         const isAgentMode = typeof currentAgent !== 'undefined' && currentAgent !== 'local';
 
+        if (startBtn) startBtn.classList.add('btn-loading');
         try {
             let response;
             if (isAgentMode) {
@@ -943,6 +944,8 @@ const BluetoothMode = (function() {
             reportActionableError('Start Bluetooth Scan', err, {
                 onRetry: () => startScan()
             });
+        } finally {
+            if (startBtn) startBtn.classList.remove('btn-loading');
         }
     }
 
@@ -1738,21 +1741,34 @@ const BluetoothMode = (function() {
     }
 
     function doLocateHandoff(device) {
-        console.log('[BT] doLocateHandoff, BtLocate defined:', typeof BtLocate !== 'undefined');
+        const payload = {
+            device_id: device.device_id,
+            device_key: device.device_key || null,
+            mac_address: device.address,
+            address_type: device.address_type || null,
+            irk_hex: device.irk_hex || null,
+            known_name: device.name || null,
+            known_manufacturer: device.manufacturer_name || null,
+            last_known_rssi: device.rssi_current,
+            tx_power: device.tx_power || null,
+            appearance_name: device.appearance_name || null,
+            fingerprint_id: device.fingerprint_id || device.fingerprint?.id || null,
+            mac_cluster_count: device.mac_cluster_count || 0
+        };
+
+        // If BtLocate is already loaded, hand off directly
         if (typeof BtLocate !== 'undefined') {
-            BtLocate.handoff({
-                device_id: device.device_id,
-                device_key: device.device_key || null,
-                mac_address: device.address,
-                address_type: device.address_type || null,
-                irk_hex: device.irk_hex || null,
-                known_name: device.name || null,
-                known_manufacturer: device.manufacturer_name || null,
-                last_known_rssi: device.rssi_current,
-                tx_power: device.tx_power || null,
-                appearance_name: device.appearance_name || null,
-                fingerprint_id: device.fingerprint_id || device.fingerprint?.id || null,
-                mac_cluster_count: device.mac_cluster_count || 0
+            BtLocate.handoff(payload);
+            return;
+        }
+
+        // Switch to bt_locate mode first — this loads the script, styles,
+        // and initializes the module. Then hand off the device data.
+        if (typeof switchMode === 'function') {
+            switchMode('bt_locate').then(function() {
+                if (typeof BtLocate !== 'undefined') {
+                    BtLocate.handoff(payload);
+                }
             });
         }
     }

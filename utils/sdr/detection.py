@@ -119,15 +119,19 @@ def detect_rtlsdr_devices() -> list[SDRDevice]:
             lib_paths = ['/usr/local/lib', '/opt/homebrew/lib']
             current_ld = env.get('DYLD_LIBRARY_PATH', '')
             env['DYLD_LIBRARY_PATH'] = ':'.join(lib_paths + [current_ld] if current_ld else lib_paths)
-        result = subprocess.run(
-            [rtl_test_path, '-t'],
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            timeout=5,
-            env=env 
-        )
+        try:
+            result = subprocess.run(
+                [rtl_test_path, '-t'],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=5,
+                env=env
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("rtl_test timed out after 5s")
+            return []
         output = result.stderr + result.stdout
 
         # Parse device info from rtl_test output
@@ -570,6 +574,16 @@ def detect_all_devices(force: bool = False) -> list[SDRDevice]:
     _all_devices_cache_ts = time.time()
 
     return devices
+
+
+def get_cached_devices() -> list[SDRDevice] | None:
+    """Return the cached device list without probing hardware.
+
+    Returns None if no cached data is available (never probed).
+    """
+    if _all_devices_cache_ts == 0.0:
+        return None
+    return list(_all_devices_cache)
 
 
 def invalidate_device_cache() -> None:

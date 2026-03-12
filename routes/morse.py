@@ -13,6 +13,7 @@ from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.event_pipeline import process_event
 from utils.logging import sensor_logger as logger
@@ -252,7 +253,7 @@ def start_morse() -> Response:
     try:
         detect_mode = _validate_detect_mode(data.get('detect_mode', 'goertzel'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     freq_max = 1766.0 if detect_mode == 'envelope' else 30.0
     try:
@@ -261,7 +262,7 @@ def start_morse() -> Response:
         ppm = validate_ppm(data.get('ppm', '0'))
         device = validate_device_index(data.get('device', '0'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     try:
         tone_freq = _validate_tone_freq(data.get('tone_freq', '700'))
@@ -277,7 +278,7 @@ def start_morse() -> Response:
         tone_lock = _bool_value(data.get('tone_lock', False), False)
         wpm_lock = _bool_value(data.get('wpm_lock', False), False)
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     sdr_type_str = data.get('sdr_type', 'rtlsdr')
 
@@ -335,7 +336,7 @@ def start_morse() -> Response:
             rtl_tcp_host = validate_rtl_tcp_host(rtl_tcp_host)
             rtl_tcp_port = validate_rtl_tcp_port(rtl_tcp_port)
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
         network_sdr_device = SDRFactory.create_network_device(rtl_tcp_host, rtl_tcp_port)
         logger.info(f"Using remote SDR: rtl_tcp://{rtl_tcp_host}:{rtl_tcp_port}")
 
@@ -696,7 +697,7 @@ def start_morse() -> Response:
                 morse_last_error = msg
                 _set_state(MORSE_ERROR, msg)
                 _set_state(MORSE_IDLE, 'Idle')
-            return jsonify({'status': 'error', 'message': msg}), 500
+            return api_error(msg, 500)
 
         with app_module.morse_lock:
             app_module.morse_process = active_rtl_process
@@ -740,7 +741,7 @@ def start_morse() -> Response:
             morse_last_error = f'Tool not found: {e.filename}'
             _set_state(MORSE_ERROR, morse_last_error)
             _set_state(MORSE_IDLE, 'Idle')
-        return jsonify({'status': 'error', 'message': morse_last_error}), 400
+        return api_error(morse_last_error, 400)
 
     except Exception as e:
         _cleanup_attempt(
@@ -758,7 +759,7 @@ def start_morse() -> Response:
             morse_last_error = str(e)
             _set_state(MORSE_ERROR, morse_last_error)
             _set_state(MORSE_IDLE, 'Idle')
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @morse_bp.route('/morse/stop', methods=['POST'])
@@ -908,11 +909,11 @@ def calibrate_morse() -> Response:
 def decode_morse_file() -> Response:
     """Decode Morse from an uploaded WAV file."""
     if 'audio' not in request.files:
-        return jsonify({'status': 'error', 'message': 'No audio file provided'}), 400
+        return api_error('No audio file provided', 400)
 
     audio_file = request.files['audio']
     if not audio_file.filename:
-        return jsonify({'status': 'error', 'message': 'No file selected'}), 400
+        return api_error('No file selected', 400)
 
     # Parse optional tuning/decoder parameters from form fields.
     form = request.form or {}
@@ -930,7 +931,7 @@ def decode_morse_file() -> Response:
         tone_lock = _bool_value(form.get('tone_lock', 'false'), False)
         wpm_lock = _bool_value(form.get('wpm_lock', 'false'), False)
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
         audio_file.save(tmp.name)
@@ -968,7 +969,7 @@ def decode_morse_file() -> Response:
         })
     except Exception as e:
         logger.error(f'Morse decode-file error: {e}')
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
     finally:
         with contextlib.suppress(Exception):
             tmp_path.unlink(missing_ok=True)

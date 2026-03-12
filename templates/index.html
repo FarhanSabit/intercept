@@ -11,6 +11,16 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+    <!-- Preconnect hints for CDN domains -->
+    {% if offline_settings.assets_source != 'local' %}
+    <link rel="preconnect" href="https://unpkg.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    {% endif %}
+    {% if offline_settings.fonts_source != 'local' %}
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    {% endif %}
+    <link rel="preconnect" href="https://cartodb-basemaps-a.global.ssl.fastly.net" crossorigin>
     <!-- Disclaimer gate - must accept before seeing welcome page -->
     <script>
         // Check BEFORE page renders - if disclaimer not accepted, hide welcome page
@@ -29,31 +39,19 @@
         window.INTERCEPT_DEFAULT_LAT = {{ default_latitude | tojson }};
         window.INTERCEPT_DEFAULT_LON = {{ default_longitude | tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/core/observer-location.js') }}"></script>
     <!-- Fonts - Conditional CDN/Local loading -->
     {% if offline_settings.fonts_source == 'local' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/fonts-local.css') }}">
     {% else %}
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     {% endif %}
-    <!-- Leaflet.js for APRS map - Conditional CDN/Local loading -->
+    <!-- Leaflet CSS -->
     {% if offline_settings.assets_source == 'local' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
-    <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
-    <script src="{{ url_for('static', filename='vendor/leaflet-heat/leaflet-heat.js') }}"></script>
     {% else %}
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     {% endif %}
-    <!-- Chart.js for signal strength graphs - Conditional CDN/Local loading -->
-    {% if offline_settings.assets_source == 'local' %}
-    <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
-    {% else %}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    {% endif %}
-    <!-- Chart.js date adapter for time-scale axes -->
-    <script src="{{ url_for('static', filename='vendor/chartjs/chartjs-adapter-date-fns.bundle.min.js') }}"></script>
+    <!-- Core CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/variables.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/layout.css') }}">
@@ -70,6 +68,21 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/signal-waveform.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/components.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modes/waterfall.css') }}?v={{ version }}&r=wfdeck19">
+    <!-- Deferred scripts - Leaflet, Chart.js, observer-location -->
+    <script defer src="{{ url_for('static', filename='js/core/observer-location.js') }}"></script>
+    {% if offline_settings.assets_source == 'local' %}
+    <script defer src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/leaflet-heat/leaflet-heat.js') }}"></script>
+    {% else %}
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    {% endif %}
+    {% if offline_settings.assets_source == 'local' %}
+    <script defer src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+    {% else %}
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    {% endif %}
+    <script defer src="{{ url_for('static', filename='vendor/chartjs/chartjs-adapter-date-fns.bundle.min.js') }}"></script>
     <script>
         window.INTERCEPT_MODE_STYLE_MAP = {
             aprs: "{{ url_for('static', filename='css/modes/aprs.css') }}",
@@ -172,6 +185,61 @@
             }
         })();
     </script>
+    <script>
+        window.INTERCEPT_MODE_SCRIPT_MAP = {
+            bluetooth: "{{ url_for('static', filename='js/modes/bluetooth.js') }}?v={{ version }}&r=btlocate2",
+            wifi: "{{ url_for('static', filename='js/modes/wifi.js') }}",
+            spystations: "{{ url_for('static', filename='js/modes/spy-stations.js') }}",
+            meshtastic: "{{ url_for('static', filename='js/modes/meshtastic.js') }}",
+            sstv: "{{ url_for('static', filename='js/modes/sstv.js') }}",
+            weathersat: "{{ url_for('static', filename='js/modes/weather-satellite.js') }}",
+            sstv_general: "{{ url_for('static', filename='js/modes/sstv-general.js') }}",
+            gps: "{{ url_for('static', filename='js/modes/gps.js') }}",
+            websdr: "{{ url_for('static', filename='js/modes/websdr.js') }}",
+            subghz: "{{ url_for('static', filename='js/modes/subghz.js') }}?v={{ version }}&r=subghz_layout9",
+            bt_locate: "{{ url_for('static', filename='js/modes/bt_locate.js') }}?v={{ version }}&r=btlocate4",
+            wifi_locate: "{{ url_for('static', filename='js/modes/wifi_locate.js') }}?v={{ version }}&r=wflocate1",
+            wefax: "{{ url_for('static', filename='js/modes/wefax.js') }}",
+            morse: "{{ url_for('static', filename='js/modes/morse.js') }}?v={{ version }}&r=morse_iq12",
+            ook: "{{ url_for('static', filename='js/modes/ook.js') }}?v={{ version }}&r=ook2",
+            spaceweather: "{{ url_for('static', filename='js/modes/space-weather.js') }}",
+            system: "{{ url_for('static', filename='js/modes/system.js') }}",
+            meteor: "{{ url_for('static', filename='js/modes/meteor.js') }}",
+            waterfall: "{{ url_for('static', filename='js/modes/waterfall.js') }}?v={{ version }}&r=wfdeck21"
+        };
+        window.INTERCEPT_MODE_SCRIPT_LOADED = {};
+        window.INTERCEPT_MODE_SCRIPT_PROMISES = {};
+        window.ensureModeScript = function(mode) {
+            var src = window.INTERCEPT_MODE_SCRIPT_MAP ? window.INTERCEPT_MODE_SCRIPT_MAP[mode] : null;
+            if (!src) return Promise.resolve();
+            if (window.INTERCEPT_MODE_SCRIPT_LOADED[src]) return Promise.resolve();
+            if (window.INTERCEPT_MODE_SCRIPT_PROMISES[src]) return window.INTERCEPT_MODE_SCRIPT_PROMISES[src];
+            var promise = new Promise(function(resolve, reject) {
+                var script = document.createElement('script');
+                script.src = src;
+                script.dataset.modeScript = mode;
+                script.onload = function() {
+                    window.INTERCEPT_MODE_SCRIPT_LOADED[src] = true;
+                    delete window.INTERCEPT_MODE_SCRIPT_PROMISES[src];
+                    resolve();
+                };
+                script.onerror = function() {
+                    delete window.INTERCEPT_MODE_SCRIPT_PROMISES[src];
+                    reject(new Error('failed to load mode script: ' + mode));
+                };
+                (document.body || document.head).appendChild(script);
+            });
+            window.INTERCEPT_MODE_SCRIPT_PROMISES[src] = promise;
+            return promise;
+        };
+        // Preload script for deep-linked mode
+        (function preloadQueryModeScript() {
+            var queryMode = new URLSearchParams(window.location.search).get('mode');
+            var mode = queryMode === 'listening' ? 'waterfall' : queryMode;
+            if (!mode) return;
+            window.ensureModeScript(mode).catch(function() {});
+        })();
+    </script>
 </head>
 
 <body data-mode="pager">
@@ -203,16 +271,10 @@
             </svg>
         </div>
         <div class="welcome-container">
-            <button type="button" class="welcome-settings-btn" onclick="showSettings()" title="Settings" aria-label="Open settings">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                </svg>
-            </button>
             <!-- Header Section -->
             <div class="welcome-header">
                 <div class="welcome-logo">
-                    <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M15 30 Q5 50, 15 70" stroke="#00d4ff" stroke-width="3" fill="none"
                             stroke-linecap="round" opacity="0.5" class="signal-wave signal-wave-1" />
                         <path d="M22 35 Q14 50, 22 65" stroke="#00d4ff" stroke-width="2.5" fill="none"
@@ -231,11 +293,15 @@
                         <rect x="38" y="76" width="24" height="4" rx="1" fill="#00d4ff" />
                     </svg>
                 </div>
-                <div class="welcome-title-block">
-                    <h1 class="welcome-title">iNTERCEPT</h1>
-                    <p class="welcome-tagline">// See the Invisible</p>
-                    <span class="welcome-version">v{{ version }}</span>
-                </div>
+                <h1 class="welcome-title">iNTERCEPT</h1>
+                <p class="welcome-tagline">// See the Invisible</p>
+                <span class="welcome-version">v{{ version }}</span>
+                <button type="button" class="welcome-settings-btn" onclick="showSettings()" title="Settings" aria-label="Open settings">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
             </div>
 
             <!-- Main Content Grid -->
@@ -407,6 +473,7 @@
             <!-- Footer -->
             <div class="welcome-footer">
                 <p>Signal Intelligence & Counter Surveillance Platform</p>
+                <a href="https://www.smittix.net" target="_blank" rel="noopener noreferrer" class="welcome-footer-credit">By Smittix</a>
             </div>
         </div>
         <div class="welcome-scanline"></div>
@@ -490,42 +557,44 @@
         </div>
     </div>
     <header>
-        <!-- Hamburger Menu Button (Mobile) -->
-        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Toggle navigation menu">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-        <a href="https://smittix.github.io/intercept" target="_blank" rel="noopener noreferrer" class="logo">
-            <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <!-- Signal brackets - left side -->
-                <path d="M15 30 Q5 50, 15 70" stroke="#00d4ff" stroke-width="3" fill="none" stroke-linecap="round"
-                    opacity="0.5" />
-                <path d="M22 35 Q14 50, 22 65" stroke="#00d4ff" stroke-width="2.5" fill="none" stroke-linecap="round"
-                    opacity="0.7" />
-                <path d="M29 40 Q23 50, 29 60" stroke="#00d4ff" stroke-width="2" fill="none" stroke-linecap="round" />
-                <!-- Signal brackets - right side -->
-                <path d="M85 30 Q95 50, 85 70" stroke="#00d4ff" stroke-width="3" fill="none" stroke-linecap="round"
-                    opacity="0.5" />
-                <path d="M78 35 Q86 50, 78 65" stroke="#00d4ff" stroke-width="2.5" fill="none" stroke-linecap="round"
-                    opacity="0.7" />
-                <path d="M71 40 Q77 50, 71 60" stroke="#00d4ff" stroke-width="2" fill="none" stroke-linecap="round" />
-                <!-- The 'i' letter -->
-                <!-- dot of i -->
-                <circle cx="50" cy="22" r="6" fill="#00ff88" />
-                <!-- stem of i with styled terminals -->
-                <rect x="44" y="35" width="12" height="45" rx="2" fill="#00d4ff" />
-                <!-- top terminal bar -->
-                <rect x="38" y="35" width="24" height="4" rx="1" fill="#00d4ff" />
-                <!-- bottom terminal bar -->
-                <rect x="38" y="76" width="24" height="4" rx="1" fill="#00d4ff" />
-            </svg>
-        </a>
-        <h1>iNTERCEPT <span class="tagline">// See the Invisible</span> <span class="version-badge">v{{ version
-                }}</span></h1>
-        <p class="subtitle">Signal Intelligence & Counter Surveillance Platform <span class="active-mode-indicator"
-                id="activeModeIndicator"><span class="pulse-dot"></span>PAGER</span></p>
-
+        <div class="header-left">
+            <!-- Hamburger Menu Button (Mobile) -->
+            <button class="hamburger-btn" id="hamburgerBtn" aria-label="Toggle navigation menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <a href="https://smittix.github.io/intercept" target="_blank" rel="noopener noreferrer" class="logo">
+                <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Signal brackets - left side -->
+                    <path d="M15 30 Q5 50, 15 70" stroke="#00d4ff" stroke-width="3" fill="none" stroke-linecap="round"
+                        opacity="0.5" />
+                    <path d="M22 35 Q14 50, 22 65" stroke="#00d4ff" stroke-width="2.5" fill="none" stroke-linecap="round"
+                        opacity="0.7" />
+                    <path d="M29 40 Q23 50, 29 60" stroke="#00d4ff" stroke-width="2" fill="none" stroke-linecap="round" />
+                    <!-- Signal brackets - right side -->
+                    <path d="M85 30 Q95 50, 85 70" stroke="#00d4ff" stroke-width="3" fill="none" stroke-linecap="round"
+                        opacity="0.5" />
+                    <path d="M78 35 Q86 50, 78 65" stroke="#00d4ff" stroke-width="2.5" fill="none" stroke-linecap="round"
+                        opacity="0.7" />
+                    <path d="M71 40 Q77 50, 71 60" stroke="#00d4ff" stroke-width="2" fill="none" stroke-linecap="round" />
+                    <!-- The 'i' letter -->
+                    <!-- dot of i -->
+                    <circle cx="50" cy="22" r="6" fill="#00ff88" />
+                    <!-- stem of i with styled terminals -->
+                    <rect x="44" y="35" width="12" height="45" rx="2" fill="#00d4ff" />
+                    <!-- top terminal bar -->
+                    <rect x="38" y="35" width="24" height="4" rx="1" fill="#00d4ff" />
+                    <!-- bottom terminal bar -->
+                    <rect x="38" y="76" width="24" height="4" rx="1" fill="#00d4ff" />
+                </svg>
+            </a>
+            <h1>iNTERCEPT <span class="tagline">// See the Invisible</span></h1>
+        </div>
+        <div class="header-right">
+            <span class="active-mode-indicator" id="activeModeIndicator"><span class="pulse-dot"></span>PAGER</span>
+            <span class="version-badge">v{{ version }}</span>
+        </div>
     </header>
 
     <div id="runStateStrip" class="run-state-strip" aria-live="polite">
@@ -894,7 +963,7 @@
                                 <span class="wifi-detail-essid" id="wifiDetailEssid">Network Name</span>
                                 <span class="wifi-detail-bssid" id="wifiDetailBssid">00:00:00:00:00:00</span>
                             </div>
-                            <button class="wfl-locate-btn" onclick="WiFiLocate.handoff({bssid: document.getElementById('wifiDetailBssid')?.textContent, ssid: document.getElementById('wifiDetailEssid')?.textContent})" title="Locate this AP">
+                            <button class="wfl-locate-btn" onclick="(function(){ var p={bssid: document.getElementById('wifiDetailBssid')?.textContent, ssid: document.getElementById('wifiDetailEssid')?.textContent}; if(typeof WiFiLocate!=='undefined'){WiFiLocate.handoff(p);return;} if(typeof switchMode==='function'){switchMode('wifi_locate').then(function(){if(typeof WiFiLocate!=='undefined')WiFiLocate.handoff(p);});} })()" title="Locate this AP">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/></svg>
                                 Locate
                             </button>
@@ -1346,7 +1415,7 @@
                 </div>
 
                 <!-- Satellite Dashboard (Embedded) -->
-                <div id="satelliteVisuals" class="satellite-dashboard-embed">
+                <div id="satelliteVisuals" class="satellite-dashboard-embed" style="display: none;">
                     <iframe id="satelliteDashboardFrame" src="/satellite/dashboard?embedded=true" frameborder="0"
                         style="width: 100%; height: 100%; min-height: 700px; border: none; border-radius: 8px;"
                         allowfullscreen>
@@ -3420,30 +3489,12 @@
     <script src="{{ url_for('static', filename='js/components/proximity-radar.js') }}"></script>
     <script src="{{ url_for('static', filename='js/components/timeline-heatmap.js') }}"></script>
     <script src="{{ url_for('static', filename='js/components/signal-waveform.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/bluetooth.js') }}?v={{ version }}&r=btlocate1"></script>
-    <!-- WiFi v2 components -->
+    <!-- Mode scripts are lazy-loaded via ensureModeScript() in switchMode() -->
+    <!-- WiFi v2 components (eagerly loaded — shared component) -->
     <script src="{{ url_for('static', filename='js/components/channel-chart.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/wifi.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/spy-stations.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/meshtastic.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/sstv.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/weather-satellite.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/sstv-general.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/gps.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/websdr.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/subghz.js') }}?v={{ version }}&r=subghz_layout9"></script>
-    <script src="{{ url_for('static', filename='js/modes/bt_locate.js') }}?v={{ version }}&r=btlocate4"></script>
-    <script src="{{ url_for('static', filename='js/modes/wifi_locate.js') }}?v={{ version }}&r=wflocate1"></script>
-    <script src="{{ url_for('static', filename='js/modes/wefax.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/morse.js') }}?v={{ version }}&r=morse_iq12"></script>
-    <script src="{{ url_for('static', filename='js/modes/ook.js') }}?v={{ version }}&r=ook2"></script>
-    <script src="{{ url_for('static', filename='js/modes/space-weather.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/system.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/meteor.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/voice-alerts.js') }}?v={{ version }}&r=voicefix2"></script>
     <script src="{{ url_for('static', filename='js/core/keyboard-shortcuts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/cheat-sheets.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modes/waterfall.js') }}?v={{ version }}&r=wfdeck21"></script>
 
     <script>
         // ============================================
@@ -4131,10 +4182,13 @@
         // Used by both switchMode() and dashboard navigation cleanup.
         function getModuleDestroyFn(mode) {
             const moduleDestroyMap = {
+                pager: () => { if (eventSource) { eventSource.close(); eventSource = null; } },
+                sensor: () => { if (eventSource) { eventSource.close(); eventSource = null; } },
+                rtlamr: () => { if (eventSource) { eventSource.close(); eventSource = null; } },
                 subghz: () => typeof SubGhz !== 'undefined' && SubGhz.destroy(),
                 morse: () => typeof MorseMode !== 'undefined' && MorseMode.destroy?.(),
                 spaceweather: () => typeof SpaceWeather !== 'undefined' && SpaceWeather.destroy?.(),
-                weathersat: () => typeof WeatherSat !== 'undefined' && WeatherSat.suspend?.(),
+                weathersat: () => typeof WeatherSat !== 'undefined' && WeatherSat.destroy?.(),
                 wefax: () => typeof WeFax !== 'undefined' && WeFax.destroy?.(),
                 system: () => typeof SystemHealth !== 'undefined' && SystemHealth.destroy?.(),
                 waterfall: () => typeof Waterfall !== 'undefined' && Waterfall.destroy?.(),
@@ -4152,6 +4206,8 @@
                 acars: () => { if (acarsMainEventSource) { acarsMainEventSource.close(); acarsMainEventSource = null; } },
                 vdl2: () => { if (vdl2MainEventSource) { vdl2MainEventSource.close(); vdl2MainEventSource = null; } },
                 radiosonde: () => { if (radiosondeEventSource) { radiosondeEventSource.close(); radiosondeEventSource = null; } },
+                aprs: () => { if (aprsEventSource) { aprsEventSource.close(); aprsEventSource = null; } },
+                tscm: () => { if (tscmEventSource) { tscmEventSource.close(); tscmEventSource = null; } },
                 meteor: () => typeof MeteorScatter !== 'undefined' && MeteorScatter.destroy?.(),
                 ook: () => typeof OokMode !== 'undefined' && OokMode.destroy?.(),
             };
@@ -4338,6 +4394,11 @@
                     console.warn(`[ModeSwitch] style load failed for ${mode}: ${err?.message || err}`);
                 })
                 : Promise.resolve();
+            const scriptReadyPromise = (typeof window.ensureModeScript === 'function')
+                ? Promise.resolve(window.ensureModeScript(mode)).catch((err) => {
+                    console.warn(`[ModeSwitch] script load failed for ${mode}: ${err?.message || err}`);
+                })
+                : Promise.resolve();
             // Only stop local scans if in local mode (not agent mode)
             const isAgentMode = typeof currentAgent !== 'undefined' && currentAgent !== 'local';
             const stopPhaseStartMs = performance.now();
@@ -4391,6 +4452,7 @@
             }
             const stopPhaseMs = Math.round(performance.now() - stopPhaseStartMs);
             await styleReadyPromise;
+            await scriptReadyPromise;
 
             // Generic module cleanup — destroy previous mode's timers, SSE, etc.
             if (previousMode && previousMode !== mode) {
@@ -4471,7 +4533,8 @@
             document.getElementById('headerWifiStats')?.classList.toggle('active', mode === 'wifi');
 
             // Show/hide dashboard buttons in nav bar
-            document.getElementById('satelliteDashboardBtn')?.classList.toggle('active', mode === 'satellite');
+            const satelliteDashboardBtn = document.getElementById('satelliteDashboardBtn');
+            if (satelliteDashboardBtn) satelliteDashboardBtn.style.display = mode === 'satellite' ? 'inline-flex' : 'none';
 
             // Update active mode indicator
             const modeMeta = modeCatalog[mode] || {};
@@ -4499,7 +4562,7 @@
             const systemVisuals = document.getElementById('systemVisuals');
             if (wifiLayoutContainer) wifiLayoutContainer.classList.toggle('active', mode === 'wifi');
             if (btLayoutContainer) btLayoutContainer.classList.toggle('active', mode === 'bluetooth');
-            if (satelliteVisuals) satelliteVisuals.classList.toggle('active', mode === 'satellite');
+            if (satelliteVisuals) satelliteVisuals.style.display = mode === 'satellite' ? 'block' : 'none';
             const satFrame = document.getElementById('satelliteDashboardFrame');
             if (satFrame && satFrame.contentWindow) {
                 satFrame.contentWindow.postMessage({type: 'satellite-visibility', visible: mode === 'satellite'}, '*');
@@ -4522,6 +4585,11 @@
             if (radiosondeVisuals) radiosondeVisuals.style.display = mode === 'radiosonde' ? 'flex' : 'none';
             if (meteorVisuals) meteorVisuals.style.display = mode === 'meteor' ? 'flex' : 'none';
             if (systemVisuals) systemVisuals.style.display = mode === 'system' ? 'flex' : 'none';
+
+            // Hide the signal feed output for modes that have their own visuals
+            const outputEl = document.getElementById('output');
+            const modesWithVisuals = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'aprs', 'wifi', 'bluetooth', 'tscm', 'spystations', 'meshtastic', 'websdr', 'subghz', 'spaceweather', 'bt_locate', 'wifi_locate', 'waterfall', 'morse', 'meteor', 'system', 'ook', 'radiosonde', 'gps'];
+            if (outputEl) outputEl.style.display = modesWithVisuals.includes(mode) ? 'none' : 'block';
 
             // Prevent Leaflet heatmap redraws on hidden BT Locate map containers.
             if (typeof BtLocate !== 'undefined' && BtLocate.setActiveMode) {
@@ -4579,9 +4647,9 @@
             const intelBtn = document.querySelector('[onclick="exportDeviceDB()"]');
             const reconPanel = document.getElementById('reconPanel');
             const hideRecon = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'gps', 'aprs', 'tscm', 'spystations', 'meshtastic', 'websdr', 'subghz', 'spaceweather', 'waterfall', 'meteor', 'system'].includes(mode);
-            if (reconPanel) reconPanel.classList.toggle('active', !hideRecon && reconEnabled);
-            if (reconBtn) reconBtn.classList.toggle('hidden', hideRecon);
-            if (intelBtn) intelBtn.classList.toggle('hidden', hideRecon);
+            if (reconPanel) reconPanel.style.display = (!hideRecon && reconEnabled) ? 'block' : 'none';
+            if (reconBtn) reconBtn.style.display = hideRecon ? 'none' : 'inline-block';
+            if (intelBtn) intelBtn.style.display = hideRecon ? 'none' : 'inline-block';
 
             // Show agent selector for modes that support remote agents
             const agentSection = document.getElementById('agentSection');
@@ -4630,11 +4698,9 @@
             document.getElementById('toolStatusSensor')?.classList.toggle('active', mode === 'sensor');
 
             // Hide output console for modes with their own visualizations
-            const fullVisualModes = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'aprs', 'wifi', 'bluetooth', 'tscm', 'spystations', 'meshtastic', 'websdr', 'subghz', 'spaceweather', 'bt_locate', 'waterfall', 'morse', 'meteor', 'system', 'ook'];
-            const hideConsole = fullVisualModes.includes(mode);
-            document.getElementById('output')?.classList.toggle('active', !hideConsole);
             const hideStatusBar = ['satellite', 'websdr', 'subghz', 'spaceweather', 'waterfall', 'morse', 'meteor', 'system'].includes(mode);
-            document.querySelector('.status-bar')?.classList.toggle('active', !hideStatusBar);
+            const statusBar = document.querySelector('.status-bar');
+            if (statusBar) statusBar.style.display = hideStatusBar ? 'none' : 'flex';
 
             // Restore sidebar when leaving Meshtastic mode (user may have collapsed it)
             if (mode !== 'meshtastic') {
@@ -7263,7 +7329,7 @@
         function toggleRecon() {
             reconEnabled = !reconEnabled;
             localStorage.setItem('reconEnabled', reconEnabled);
-            document.getElementById('reconPanel')?.classList.toggle('active', reconEnabled);
+            document.getElementById('reconPanel').style.display = reconEnabled ? 'block' : 'none';
             document.getElementById('reconBtn')?.classList.toggle('active', reconEnabled);
 
             // Populate recon display if enabled and we have data
@@ -7275,7 +7341,7 @@
         }
 
         // Initialize recon state
-        document.getElementById('reconPanel')?.classList.toggle('active', reconEnabled);
+        document.getElementById('reconPanel').style.display = reconEnabled ? 'block' : 'none';
         if (reconEnabled) {
             document.getElementById('reconBtn')?.classList.add('active');
         }
@@ -9915,19 +9981,27 @@
             aprsMap = L.map('aprsMap').setView([initialLat, initialLon], initialZoom);
             window.aprsMap = aprsMap;
 
-            // Use settings manager for tile layer (allows runtime changes)
+            // Add fallback tiles immediately so the map is visible instantly
+            const fallbackTiles = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+                maxZoom: 19,
+                subdomains: 'abcd',
+                className: 'tile-layer-cyan'
+            }).addTo(aprsMap);
+
+            // Upgrade tiles in background via Settings (with timeout fallback)
             if (typeof Settings !== 'undefined') {
-                // Wait for settings to load from server before applying tiles
-                await Settings.init();
-                Settings.createTileLayer().addTo(aprsMap);
-                Settings.registerMap(aprsMap);
-            } else {
-                L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-                    maxZoom: 19,
-                    subdomains: 'abcd',
-                    className: 'tile-layer-cyan'
-                }).addTo(aprsMap);
+                try {
+                    await Promise.race([
+                        Settings.init(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
+                    ]);
+                    aprsMap.removeLayer(fallbackTiles);
+                    Settings.createTileLayer().addTo(aprsMap);
+                    Settings.registerMap(aprsMap);
+                } catch (e) {
+                    console.warn('APRS: Settings init failed/timed out, using fallback tiles:', e);
+                }
             }
 
             // Add user marker if GPS position is already available
@@ -10995,19 +11069,27 @@
             });
             window.groundTrackMap = groundTrackMap;
 
-            // Use settings manager for tile layer (allows runtime changes)
+            // Add fallback tiles immediately so the map is visible instantly
+            const fallbackTiles = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+                maxZoom: 19,
+                subdomains: 'abcd',
+                className: 'tile-layer-cyan'
+            }).addTo(groundTrackMap);
+
+            // Upgrade tiles in background via Settings (with timeout fallback)
             if (typeof Settings !== 'undefined') {
-                // Wait for settings to load from server before applying tiles
-                await Settings.init();
-                Settings.createTileLayer().addTo(groundTrackMap);
-                Settings.registerMap(groundTrackMap);
-            } else {
-                L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-                    maxZoom: 19,
-                    subdomains: 'abcd',
-                    className: 'tile-layer-cyan'
-                }).addTo(groundTrackMap);
+                try {
+                    await Promise.race([
+                        Settings.init(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
+                    ]);
+                    groundTrackMap.removeLayer(fallbackTiles);
+                    Settings.createTileLayer().addTo(groundTrackMap);
+                    Settings.registerMap(groundTrackMap);
+                } catch (e) {
+                    console.warn('Ground track: Settings init failed/timed out, using fallback tiles:', e);
+                }
             }
 
             // Add observer marker

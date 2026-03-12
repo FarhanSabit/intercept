@@ -29,6 +29,7 @@ from utils.bluetooth import (
     get_tracker_engine,
 )
 from utils.database import get_db
+from utils.responses import api_success, api_error
 from utils.sse import format_sse
 from utils.event_pipeline import process_event
 
@@ -231,7 +232,7 @@ def start_scan():
     # Validate mode
     valid_modes = ('auto', 'dbus', 'bleak', 'hcitool', 'bluetoothctl', 'ubertooth')
     if mode not in valid_modes:
-        return jsonify({'error': f'Invalid mode. Must be one of: {valid_modes}'}), 400
+        return api_error(f'Invalid mode. Must be one of: {valid_modes}', 400)
 
     # Get scanner instance
     scanner = get_bluetooth_scanner(adapter_id)
@@ -389,7 +390,7 @@ def get_device(device_id: str):
     device = scanner.get_device(device_id)
 
     if not device:
-        return jsonify({'error': 'Device not found'}), 404
+        return api_error('Device not found', 404)
 
     return jsonify(device.to_dict())
 
@@ -529,7 +530,7 @@ def get_tracker_detail(device_id: str):
     device = scanner.get_device(device_id)
 
     if not device:
-        return jsonify({'error': 'Device not found'}), 404
+        return api_error('Device not found', 404)
 
     # Get RSSI history for timeline
     rssi_history = device.get_rssi_history(max_points=100)

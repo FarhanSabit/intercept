@@ -10,6 +10,7 @@ import queue
 
 from flask import Blueprint, Response, jsonify, request, send_file
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.logging import get_logger
 from utils.sdr import SDRType
@@ -109,10 +110,7 @@ def start_decoder():
     # Validate frequency (required)
     frequency_khz = data.get('frequency_khz')
     if frequency_khz is None:
-        return jsonify({
-            'status': 'error',
-            'message': 'frequency_khz is required',
-        }), 400
+        return api_error('frequency_khz is required', 400)
 
     try:
         frequency_khz = float(frequency_khz)
@@ -120,10 +118,7 @@ def start_decoder():
         freq_mhz = frequency_khz / 1000.0
         validate_frequency(freq_mhz, min_mhz=2.0, max_mhz=30.0)
     except (TypeError, ValueError) as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Invalid frequency: {e}',
-        }), 400
+        return api_error(f'Invalid frequency: {e}', 400)
 
     station = str(data.get('station', '')).strip()
     device_index = data.get('device', 0)
@@ -152,34 +147,21 @@ def start_decoder():
         tuned_mhz = tuned_frequency_khz / 1000.0
         validate_frequency(tuned_mhz, min_mhz=2.0, max_mhz=30.0)
     except ValueError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Invalid frequency settings: {e}',
-        }), 400
+        return api_error(f'Invalid frequency settings: {e}', 400)
 
     # Validate IOC and LPM
     if ioc not in (288, 576):
-        return jsonify({
-            'status': 'error',
-            'message': 'IOC must be 288 or 576',
-        }), 400
+        return api_error('IOC must be 288 or 576', 400)
 
     if lpm not in (60, 120):
-        return jsonify({
-            'status': 'error',
-            'message': 'LPM must be 60 or 120',
-        }), 400
+        return api_error('LPM must be 60 or 120', 400)
 
     # Claim SDR device
     global wefax_active_device, wefax_active_sdr_type
     device_int = int(device_index)
     error = app_module.claim_sdr_device(device_int, 'wefax', sdr_type_str)
     if error:
-        return jsonify({
-            'status': 'error',
-            'error_type': 'DEVICE_BUSY',
-            'message': error,
-        }), 409
+        return api_error(error, 409, error_type='DEVICE_BUSY')
 
     # Set callback and start
     decoder.set_callback(_progress_callback)
@@ -213,10 +195,7 @@ def start_decoder():
         })
     else:
         app_module.release_sdr_device(device_int, sdr_type_str)
-        return jsonify({
-            'status': 'error',
-            'message': 'Failed to start decoder',
-        }), 500
+        return api_error('Failed to start decoder', 500)
 
 
 @wefax_bp.route('/stop', methods=['POST'])
@@ -275,14 +254,14 @@ def get_image(filename: str):
     decoder = get_wefax_decoder()
 
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not filename.endswith('.png'):
-        return jsonify({'status': 'error', 'message': 'Only PNG files supported'}), 400
+        return api_error('Only PNG files supported', 400)
 
     image_path = decoder._output_dir / filename
     if not image_path.exists():
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
     return send_file(image_path, mimetype='image/png')
 
@@ -293,15 +272,15 @@ def delete_image(filename: str):
     decoder = get_wefax_decoder()
 
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not filename.endswith('.png'):
-        return jsonify({'status': 'error', 'message': 'Only PNG files supported'}), 400
+        return api_error('Only PNG files supported', 400)
 
     if decoder.delete_image(filename):
         return jsonify({'status': 'ok'})
     else:
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
 
 @wefax_bp.route('/images', methods=['DELETE'])
@@ -354,27 +333,18 @@ def enable_schedule():
 
     station = str(data.get('station', '')).strip()
     if not station:
-        return jsonify({
-            'status': 'error',
-            'message': 'station is required',
-        }), 400
+        return api_error('station is required', 400)
 
     frequency_khz = data.get('frequency_khz')
     if frequency_khz is None:
-        return jsonify({
-            'status': 'error',
-            'message': 'frequency_khz is required',
-        }), 400
+        return api_error('frequency_khz is required', 400)
 
     try:
         frequency_khz = float(frequency_khz)
         freq_mhz = frequency_khz / 1000.0
         validate_frequency(freq_mhz, min_mhz=2.0, max_mhz=30.0)
     except (TypeError, ValueError) as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Invalid frequency: {e}',
-        }), 400
+        return api_error(f'Invalid frequency: {e}', 400)
 
     device = int(data.get('device', 0))
     gain = float(data.get('gain', 40.0))
@@ -396,10 +366,7 @@ def enable_schedule():
         tuned_mhz = tuned_frequency_khz / 1000.0
         validate_frequency(tuned_mhz, min_mhz=2.0, max_mhz=30.0)
     except ValueError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Invalid frequency settings: {e}',
-        }), 400
+        return api_error(f'Invalid frequency settings: {e}', 400)
 
     scheduler = get_wefax_scheduler()
     scheduler.set_callbacks(_progress_callback, _scheduler_event_callback)
@@ -416,10 +383,7 @@ def enable_schedule():
         )
     except Exception:
         logger.exception("Failed to enable WeFax scheduler")
-        return jsonify({
-            'status': 'error',
-            'message': 'Failed to enable scheduler',
-        }), 500
+        return api_error('Failed to enable scheduler', 500)
 
     return jsonify({
         'status': 'ok',
@@ -473,19 +437,13 @@ def skip_broadcast(broadcast_id: str):
     from utils.wefax_scheduler import get_wefax_scheduler
 
     if not broadcast_id.replace('_', '').replace('-', '').isalnum():
-        return jsonify({
-            'status': 'error',
-            'message': 'Invalid broadcast ID',
-        }), 400
+        return api_error('Invalid broadcast ID', 400)
 
     scheduler = get_wefax_scheduler()
     if scheduler.skip_broadcast(broadcast_id):
         return jsonify({'status': 'skipped', 'broadcast_id': broadcast_id})
     else:
-        return jsonify({
-            'status': 'error',
-            'message': 'Broadcast not found or already processed',
-        }), 404
+        return api_error('Broadcast not found or already processed', 404)
 
 
 @wefax_bp.route('/stations')
@@ -504,10 +462,7 @@ def station_detail(callsign: str):
     """Get station detail including current schedule info."""
     station = get_station(callsign)
     if not station:
-        return jsonify({
-            'status': 'error',
-            'message': f'Station {callsign} not found',
-        }), 404
+        return api_error(f'Station {callsign} not found', 404)
 
     current = get_current_broadcasts(callsign)
 

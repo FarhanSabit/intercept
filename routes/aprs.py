@@ -20,6 +20,7 @@ from typing import Any, Generator, Optional
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.logging import sensor_logger as logger
 from utils.validation import (
@@ -1651,8 +1652,7 @@ def aprs_data() -> Response:
     if app_module.aprs_process:
         running = app_module.aprs_process.poll() is None
 
-    return jsonify({
-        'status': 'success',
+    return api_success(data={
         'running': running,
         'stations': list(aprs_stations.values()),
         'count': len(aprs_stations),
@@ -1670,20 +1670,14 @@ def start_aprs() -> Response:
 
     with app_module.aprs_lock:
         if app_module.aprs_process and app_module.aprs_process.poll() is None:
-            return jsonify({
-                'status': 'error',
-                'message': 'APRS decoder already running'
-            }), 409
+            return api_error('APRS decoder already running', 409)
 
     # Check for decoder (prefer direwolf, fallback to multimon-ng)
     direwolf_path = find_direwolf()
     multimon_path = find_multimon_ng()
 
     if not direwolf_path and not multimon_path:
-        return jsonify({
-            'status': 'error',
-            'message': 'No APRS decoder found. Install direwolf or multimon-ng'
-        }), 400
+        return api_error('No APRS decoder found. Install direwolf or multimon-ng', 400)
 
     data = request.json or {}
 
@@ -1693,7 +1687,7 @@ def start_aprs() -> Response:
         gain = validate_gain(data.get('gain', '40'))
         ppm = validate_ppm(data.get('ppm', '0'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     # Check for rtl_tcp (remote SDR) connection
     rtl_tcp_host = data.get('rtl_tcp_host')
@@ -1707,26 +1701,16 @@ def start_aprs() -> Response:
 
     if sdr_type == SDRType.RTL_SDR:
         if find_rtl_fm() is None:
-            return jsonify({
-                'status': 'error',
-                'message': 'rtl_fm not found. Install with: sudo apt install rtl-sdr'
-            }), 400
+            return api_error('rtl_fm not found. Install with: sudo apt install rtl-sdr', 400)
     else:
         if find_rx_fm() is None:
-            return jsonify({
-                'status': 'error',
-                'message': f'rx_fm not found. Install SoapySDR tools for {sdr_type.value}.'
-            }), 400
+            return api_error(f'rx_fm not found. Install SoapySDR tools for {sdr_type.value}.', 400)
 
     # Reserve SDR device to prevent conflicts (skip for remote rtl_tcp)
     if not rtl_tcp_host:
         error = app_module.claim_sdr_device(device, 'aprs', sdr_type_str)
         if error:
-            return jsonify({
-                'status': 'error',
-                'error_type': 'DEVICE_BUSY',
-                'message': error
-            }), 409
+            return api_error(error, 409, error_type='DEVICE_BUSY')
         aprs_active_device = device
         aprs_active_sdr_type = sdr_type_str
 
@@ -1757,7 +1741,7 @@ def start_aprs() -> Response:
                 rtl_tcp_host = validate_rtl_tcp_host(rtl_tcp_host)
                 rtl_tcp_port = validate_rtl_tcp_port(rtl_tcp_port)
             except ValueError as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 400
+                return api_error(str(e), 400)
             sdr_device = SDRFactory.create_network_device(rtl_tcp_host, rtl_tcp_port)
             logger.info(f"Using remote SDR: rtl_tcp://{rtl_tcp_host}:{rtl_tcp_port}")
         else:
@@ -1782,7 +1766,7 @@ def start_aprs() -> Response:
             app_module.release_sdr_device(aprs_active_device, aprs_active_sdr_type or 'rtlsdr')
             aprs_active_device = None
             aprs_active_sdr_type = None
-        return jsonify({'status': 'error', 'message': f'Failed to build SDR command: {e}'}), 500
+        return api_error(f'Failed to build SDR command: {e}', 500)
 
     # Build decoder command
     if direwolf_path:
@@ -1888,7 +1872,7 @@ def start_aprs() -> Response:
                 app_module.release_sdr_device(aprs_active_device, aprs_active_sdr_type or 'rtlsdr')
                 aprs_active_device = None
                 aprs_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': error_msg}), 500
+            return api_error(error_msg, 500)
 
         if decoder_process.poll() is not None:
             # Decoder exited early - capture any output from PTY
@@ -1916,7 +1900,7 @@ def start_aprs() -> Response:
                 app_module.release_sdr_device(aprs_active_device, aprs_active_sdr_type or 'rtlsdr')
                 aprs_active_device = None
                 aprs_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': error_msg}), 500
+            return api_error(error_msg, 500)
 
         # Store references for status checks and cleanup
         app_module.aprs_process = decoder_process
@@ -1946,7 +1930,7 @@ def start_aprs() -> Response:
             app_module.release_sdr_device(aprs_active_device, aprs_active_sdr_type or 'rtlsdr')
             aprs_active_device = None
             aprs_active_sdr_type = None
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @aprs_bp.route('/stop', methods=['POST'])
@@ -1964,10 +1948,7 @@ def stop_aprs() -> Response:
             processes_to_stop.append(app_module.aprs_process)
 
         if not processes_to_stop:
-            return jsonify({
-                'status': 'error',
-                'message': 'APRS decoder not running'
-            }), 400
+            return api_error('APRS decoder not running', 400)
 
         for proc in processes_to_stop:
             try:
@@ -2045,10 +2026,7 @@ def scan_aprs_spectrum() -> Response:
     """
     rtl_power_path = find_rtl_power()
     if not rtl_power_path:
-        return jsonify({
-            'status': 'error',
-            'message': 'rtl_power not found. Install with: sudo apt install rtl-sdr'
-        }), 400
+        return api_error('rtl_power not found. Install with: sudo apt install rtl-sdr', 400)
 
     # Get parameters from JSON body or query args
     if request.is_json:
@@ -2068,7 +2046,7 @@ def scan_aprs_spectrum() -> Response:
         gain = validate_gain(gain)
         duration = min(max(int(duration), 5), 60)  # Clamp 5-60 seconds
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     # Get center frequency
     if frequency:
@@ -2113,18 +2091,12 @@ def scan_aprs_spectrum() -> Response:
 
         if result.returncode != 0:
             error_msg = result.stderr[:200] if result.stderr else f'Exit code {result.returncode}'
-            return jsonify({
-                'status': 'error',
-                'message': f'rtl_power failed: {error_msg}'
-            }), 500
+            return api_error(f'rtl_power failed: {error_msg}', 500)
 
         # Parse rtl_power CSV output
         # Format: date, time, start_hz, end_hz, step_hz, samples, db1, db2, db3, ...
         if not os.path.exists(tmp_file):
-            return jsonify({
-                'status': 'error',
-                'message': 'rtl_power did not produce output file'
-            }), 500
+            return api_error('rtl_power did not produce output file', 500)
 
         bins = []
         with open(tmp_file, 'r') as f:
@@ -2144,10 +2116,7 @@ def scan_aprs_spectrum() -> Response:
                     continue
 
         if not bins:
-            return jsonify({
-                'status': 'error',
-                'message': 'No spectrum data collected. Check SDR connection and antenna.'
-            }), 500
+            return api_error('No spectrum data collected. Check SDR connection and antenna.', 500)
 
         # Calculate statistics
         db_values = [b['db'] for b in bins]
@@ -2177,8 +2146,7 @@ def scan_aprs_spectrum() -> Response:
         else:
             advice = "Good signal detected. Decoding should work well."
 
-        return jsonify({
-            'status': 'success',
+        return api_success(data={
             'scan_params': {
                 'center_freq_mhz': center_freq_mhz,
                 'start_freq_mhz': start_freq_mhz,
@@ -2204,13 +2172,10 @@ def scan_aprs_spectrum() -> Response:
         })
 
     except subprocess.TimeoutExpired:
-        return jsonify({
-            'status': 'error',
-            'message': f'Spectrum scan timed out after {duration + 15} seconds'
-        }), 500
+        return api_error(f'Spectrum scan timed out after {duration + 15} seconds', 500)
     except Exception as e:
         logger.error(f"Spectrum scan error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
     finally:
         # Cleanup temp file
         try:

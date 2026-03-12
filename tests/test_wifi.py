@@ -173,8 +173,8 @@ def test_capture_pmkid_path_traversal_prevention(client):
     """Ensure the status check rejects invalid paths."""
     payload = {'file': '/etc/passwd'} # Malicious path
     response = client.post('/wifi/pmkid/status', json=payload)
-    
-    assert response.status_code == 200
+
+    assert response.status_code == 400
     assert response.get_json()['status'] == 'error'
     assert 'Invalid capture file path' in response.get_json()['message']
 

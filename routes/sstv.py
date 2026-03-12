@@ -14,6 +14,7 @@ from typing import Any
 
 from flask import Blueprint, jsonify, request, Response, send_file
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.logging import get_logger
 from utils.sse import sse_stream_fanout
@@ -357,16 +358,16 @@ def get_image(filename: str):
 
     # Security: only allow alphanumeric filenames with .png extension
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not filename.endswith('.png'):
-        return jsonify({'status': 'error', 'message': 'Only PNG files supported'}), 400
+        return api_error('Only PNG files supported', 400)
 
     # Find image in decoder's output directory
     image_path = decoder._output_dir / filename
 
     if not image_path.exists():
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
     return send_file(image_path, mimetype='image/png')
 
@@ -386,15 +387,15 @@ def download_image(filename: str):
 
     # Security: only allow alphanumeric filenames with .png extension
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not filename.endswith('.png'):
-        return jsonify({'status': 'error', 'message': 'Only PNG files supported'}), 400
+        return api_error('Only PNG files supported', 400)
 
     image_path = decoder._output_dir / filename
 
     if not image_path.exists():
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
     return send_file(image_path, mimetype='image/png', as_attachment=True, download_name=filename)
 
@@ -414,15 +415,15 @@ def delete_image(filename: str):
 
     # Security: only allow alphanumeric filenames with .png extension
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not filename.endswith('.png'):
-        return jsonify({'status': 'error', 'message': 'Only PNG files supported'}), 400
+        return api_error('Only PNG files supported', 400)
 
     if decoder.delete_image(filename):
         return jsonify({'status': 'ok'})
     else:
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
 
 @sstv_bp.route('/images', methods=['DELETE'])

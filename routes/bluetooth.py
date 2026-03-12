@@ -17,6 +17,7 @@ from typing import Any, Generator
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.dependencies import check_tool
 from utils.logging import bluetooth_logger as logger
@@ -38,6 +39,23 @@ from utils.constants import (
 )
 
 bluetooth_bp = Blueprint('bluetooth', __name__, url_prefix='/bt')
+
+# --- v1 deprecation ---
+# These endpoints are deprecated in favor of /api/bluetooth/*.
+# Frontend still uses v1, so they remain active.
+# Migration: switch frontend to v2 endpoints, then remove this file.
+_v1_deprecation_logged = set()
+
+
+@bluetooth_bp.after_request
+def _add_deprecation_header(response):
+    """Add X-Deprecated header to all v1 Bluetooth responses."""
+    response.headers['X-Deprecated'] = 'Use /api/bluetooth/* endpoints instead'
+    endpoint = request.endpoint or ''
+    if endpoint not in _v1_deprecation_logged:
+        _v1_deprecation_logged.add(endpoint)
+        logger.warning(f"Deprecated v1 Bluetooth endpoint called: {request.path} — migrate to /api/bluetooth/*")
+    return response
 
 
 def classify_bt_device(name, device_class, services, manufacturer=None):
@@ -331,8 +349,8 @@ def reload_oui_database_route():
     if new_db:
         OUI_DATABASE.clear()
         OUI_DATABASE.update(new_db)
-        return jsonify({'status': 'success', 'entries': len(OUI_DATABASE)})
-    return jsonify({'status': 'error', 'message': 'Could not load oui_database.json'})
+        return api_success(data={'entries': len(OUI_DATABASE)})
+    return api_error('Could not load oui_database.json')
 
 
 @bluetooth_bp.route('/interfaces')
@@ -359,7 +377,7 @@ def start_bt_scan():
     with app_module.bt_lock:
         if app_module.bt_process:
             if app_module.bt_process.poll() is None:
-                return jsonify({'status': 'error', 'message': 'Scan already running'})
+                return api_error('Scan already running')
             else:
                 app_module.bt_process = None
 
@@ -371,7 +389,7 @@ def start_bt_scan():
         try:
             interface = validate_bluetooth_interface(data.get('interface', 'hci0'))
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
 
         app_module.bt_interface = interface
         app_module.bt_devices = {}
@@ -413,14 +431,14 @@ def start_bt_scan():
                 os.write(master_fd, b'scan on\n')
 
             else:
-                return jsonify({'status': 'error', 'message': f'Unknown scan mode: {scan_mode}'})
+                return api_error(f'Unknown scan mode: {scan_mode}')
 
             time.sleep(0.5)
 
             if app_module.bt_process.poll() is not None:
                 stderr_output = app_module.bt_process.stderr.read().decode('utf-8', errors='replace').strip()
                 app_module.bt_process = None
-                return jsonify({'status': 'error', 'message': stderr_output or 'Process failed to start'})
+                return api_error(stderr_output or 'Process failed to start')
 
             thread = threading.Thread(target=stream_bt_scan, args=(app_module.bt_process, scan_mode))
             thread.daemon = True
@@ -430,9 +448,9 @@ def start_bt_scan():
             return jsonify({'status': 'started', 'mode': scan_mode, 'interface': interface})
 
         except FileNotFoundError as e:
-            return jsonify({'status': 'error', 'message': f'Tool not found: {e.filename}'})
+            return api_error(f'Tool not found: {e.filename}')
         except Exception as e:
-            return jsonify({'status': 'error', 'message': str(e)})
+            return api_error(str(e))
 
 
 @bluetooth_bp.route('/scan/stop', methods=['POST'])
@@ -459,7 +477,7 @@ def reset_bt_adapter():
     try:
         interface = validate_bluetooth_interface(data.get('interface', 'hci0'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     with app_module.bt_lock:
         if app_module.bt_process:
@@ -494,7 +512,7 @@ def reset_bt_adapter():
         })
 
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return api_error(str(e))
 
 
 @bluetooth_bp.route('/enum', methods=['POST'])
@@ -504,7 +522,7 @@ def enum_bt_services():
     target_mac = data.get('mac')
 
     if not target_mac:
-        return jsonify({'status': 'error', 'message': 'Target MAC required'})
+        return api_error('Target MAC required')
 
     try:
         result = subprocess.run(
@@ -529,18 +547,17 @@ def enum_bt_services():
 
         app_module.bt_services[target_mac] = services
 
-        return jsonify({
-            'status': 'success',
+        return api_success(data={
             'mac': target_mac,
             'services': services
         })
 
     except subprocess.TimeoutExpired:
-        return jsonify({'status': 'error', 'message': 'Connection timed out'})
+        return api_error('Connection timed out')
     except FileNotFoundError:
-        return jsonify({'status': 'error', 'message': 'sdptool not found'})
+        return api_error('sdptool not found')
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return api_error(str(e))
 
 
 @bluetooth_bp.route('/devices')

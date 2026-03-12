@@ -16,6 +16,7 @@ from utils.database import (
     get_correlations,
 )
 from utils.logging import get_logger
+from utils.responses import api_error, api_success
 
 logger = get_logger('intercept.settings')
 
@@ -27,16 +28,10 @@ def get_settings() -> Response:
     """Get all settings."""
     try:
         settings = get_all_settings()
-        return jsonify({
-            'status': 'success',
-            'settings': settings
-        })
+        return api_success(data={'settings': settings})
     except Exception as e:
         logger.error(f"Error getting settings: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @settings_bp.route('', methods=['POST'])
@@ -45,10 +40,7 @@ def save_settings() -> Response:
     data = request.json or {}
 
     if not data:
-        return jsonify({
-            'status': 'error',
-            'message': 'No settings provided'
-        }), 400
+        return api_error('No settings provided', 400)
 
     try:
         saved = []
@@ -60,16 +52,10 @@ def save_settings() -> Response:
             set_setting(key, value)
             saved.append(key)
 
-        return jsonify({
-            'status': 'success',
-            'saved': saved
-        })
+        return api_success(data={'saved': saved})
     except Exception as e:
         logger.error(f"Error saving settings: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @settings_bp.route('/<key>', methods=['GET'])
@@ -83,17 +69,10 @@ def get_single_setting(key: str) -> Response:
                 'key': key
             }), 404
 
-        return jsonify({
-            'status': 'success',
-            'key': key,
-            'value': value
-        })
+        return api_success(data={'key': key, 'value': value})
     except Exception as e:
         logger.error(f"Error getting setting {key}: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @settings_bp.route('/<key>', methods=['PUT'])
@@ -103,24 +82,14 @@ def update_single_setting(key: str) -> Response:
     value = data.get('value')
 
     if value is None and 'value' not in data:
-        return jsonify({
-            'status': 'error',
-            'message': 'Value is required'
-        }), 400
+        return api_error('Value is required', 400)
 
     try:
         set_setting(key, value)
-        return jsonify({
-            'status': 'success',
-            'key': key,
-            'value': value
-        })
+        return api_success(data={'key': key, 'value': value})
     except Exception as e:
         logger.error(f"Error updating setting {key}: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @settings_bp.route('/<key>', methods=['DELETE'])
@@ -129,11 +98,7 @@ def delete_single_setting(key: str) -> Response:
     try:
         deleted = delete_setting(key)
         if deleted:
-            return jsonify({
-                'status': 'success',
-                'key': key,
-                'deleted': True
-            })
+            return api_success(data={'key': key, 'deleted': True})
         else:
             return jsonify({
                 'status': 'not_found',
@@ -141,10 +106,7 @@ def delete_single_setting(key: str) -> Response:
             }), 404
     except Exception as e:
         logger.error(f"Error deleting setting {key}: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 # =============================================================================
@@ -158,16 +120,10 @@ def get_device_correlations() -> Response:
 
     try:
         correlations = get_correlations(min_confidence)
-        return jsonify({
-            'status': 'success',
-            'correlations': correlations
-        })
+        return api_success(data={'correlations': correlations})
     except Exception as e:
         logger.error(f"Error getting correlations: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 # =============================================================================
@@ -229,17 +185,11 @@ def check_dvb_driver_status() -> Response:
 def blacklist_dvb_drivers() -> Response:
     """Blacklist DVB kernel drivers to prevent them from claiming RTL-SDR devices."""
     if sys.platform != 'linux':
-        return jsonify({
-            'status': 'error',
-            'message': 'This feature is only available on Linux'
-        }), 400
+        return api_error('This feature is only available on Linux', 400)
 
     # Check if we have permission (need to be running as root or with sudo)
     if os.geteuid() != 0:
-        return jsonify({
-            'status': 'error',
-            'message': 'Root privileges required. Run the app with sudo or manually run: sudo modprobe -r dvb_usb_rtl28xxu rtl2832_sdr rtl2832 r820t'
-        }), 403
+        return api_error('Root privileges required. Run the app with sudo or manually run: sudo modprobe -r dvb_usb_rtl28xxu rtl2832_sdr rtl2832 r820t', 403)
 
     errors = []
     successes = []

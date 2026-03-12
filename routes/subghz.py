@@ -10,6 +10,7 @@ import queue
 
 from flask import Blueprint, jsonify, request, Response, send_file
 
+from utils.responses import api_success, api_error
 from utils.logging import get_logger
 from utils.sse import sse_stream
 from utils.subghz import get_subghz_manager
@@ -141,7 +142,7 @@ def start_receive():
 
     freq_hz, err = _validate_frequency_hz(data)
     if err:
-        return jsonify({'status': 'error', 'message': err}), 400
+        return api_error(err, 400)
 
     sample_rate = _validate_int(data, 'sample_rate', 2000000, 2000000, 20000000)
     lna_gain = _validate_int(data, 'lna_gain', 32, 0, SUBGHZ_LNA_GAIN_MAX)
@@ -186,7 +187,7 @@ def start_decode():
 
     freq_hz, err = _validate_frequency_hz(data)
     if err:
-        return jsonify({'status': 'error', 'message': err}), 400
+        return api_error(err, 400)
 
     sample_rate = _validate_int(data, 'sample_rate', 2000000, 2000000, 20000000)
     lna_gain = _validate_int(data, 'lna_gain', 32, 0, SUBGHZ_LNA_GAIN_MAX)
@@ -227,20 +228,20 @@ def start_transmit():
 
     capture_id = data.get('capture_id')
     if not capture_id or not isinstance(capture_id, str):
-        return jsonify({'status': 'error', 'message': 'capture_id is required'}), 400
+        return api_error('capture_id is required', 400)
 
     # Sanitize capture_id
     if not capture_id.isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid capture_id'}), 400
+        return api_error('Invalid capture_id', 400)
 
     tx_gain = _validate_int(data, 'tx_gain', 20, 0, SUBGHZ_TX_VGA_GAIN_MAX)
     max_duration = _validate_int(data, 'max_duration', 10, 1, SUBGHZ_TX_MAX_DURATION)
     start_seconds, start_err = _validate_optional_float(data, 'start_seconds')
     if start_err:
-        return jsonify({'status': 'error', 'message': start_err}), 400
+        return api_error(start_err, 400)
     duration_seconds, duration_err = _validate_optional_float(data, 'duration_seconds')
     if duration_err:
-        return jsonify({'status': 'error', 'message': duration_err}), 400
+        return api_error(duration_err, 400)
     device_serial = _validate_serial(data)
 
     manager = get_subghz_manager()
@@ -278,11 +279,11 @@ def start_sweep():
         freq_start = float(data.get('freq_start_mhz', 300))
         freq_end = float(data.get('freq_end_mhz', 928))
         if freq_start >= freq_end:
-            return jsonify({'status': 'error', 'message': 'freq_start must be less than freq_end'}), 400
+            return api_error('freq_start must be less than freq_end', 400)
         if freq_start < SUBGHZ_FREQ_MIN_MHZ or freq_end > SUBGHZ_FREQ_MAX_MHZ:
-            return jsonify({'status': 'error', 'message': f'Frequency range: {SUBGHZ_FREQ_MIN_MHZ}-{SUBGHZ_FREQ_MAX_MHZ} MHz'}), 400
+            return api_error(f'Frequency range: {SUBGHZ_FREQ_MIN_MHZ}-{SUBGHZ_FREQ_MAX_MHZ} MHz', 400)
     except (ValueError, TypeError):
-        return jsonify({'status': 'error', 'message': 'Invalid frequency range'}), 400
+        return api_error('Invalid frequency range', 400)
 
     bin_width = _validate_int(data, 'bin_width', 100000, 10000, 5000000)
     device_serial = _validate_serial(data)
@@ -326,12 +327,12 @@ def list_captures():
 @subghz_bp.route('/captures/<capture_id>')
 def get_capture(capture_id: str):
     if not capture_id.isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid capture_id'}), 400
+        return api_error('Invalid capture_id', 400)
 
     manager = get_subghz_manager()
     capture = manager.get_capture(capture_id)
     if not capture:
-        return jsonify({'status': 'error', 'message': 'Capture not found'}), 404
+        return api_error('Capture not found', 404)
 
     return jsonify({'status': 'ok', 'capture': capture.to_dict()})
 
@@ -339,12 +340,12 @@ def get_capture(capture_id: str):
 @subghz_bp.route('/captures/<capture_id>/download')
 def download_capture(capture_id: str):
     if not capture_id.isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid capture_id'}), 400
+        return api_error('Invalid capture_id', 400)
 
     manager = get_subghz_manager()
     path = manager.get_capture_path(capture_id)
     if not path:
-        return jsonify({'status': 'error', 'message': 'Capture not found'}), 404
+        return api_error('Capture not found', 404)
 
     return send_file(
         path,
@@ -357,21 +358,21 @@ def download_capture(capture_id: str):
 @subghz_bp.route('/captures/<capture_id>/trim', methods=['POST'])
 def trim_capture(capture_id: str):
     if not capture_id.isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid capture_id'}), 400
+        return api_error('Invalid capture_id', 400)
 
     data = request.get_json(silent=True) or {}
     start_seconds, start_err = _validate_optional_float(data, 'start_seconds')
     if start_err:
-        return jsonify({'status': 'error', 'message': start_err}), 400
+        return api_error(start_err, 400)
     duration_seconds, duration_err = _validate_optional_float(data, 'duration_seconds')
     if duration_err:
-        return jsonify({'status': 'error', 'message': duration_err}), 400
+        return api_error(duration_err, 400)
 
     label = data.get('label', '')
     if label is None:
         label = ''
     if not isinstance(label, str) or len(label) > 100:
-        return jsonify({'status': 'error', 'message': 'Label must be a string (max 100 chars)'}), 400
+        return api_error('Label must be a string (max 100 chars)', 400)
 
     manager = get_subghz_manager()
     result = manager.trim_capture(
@@ -391,29 +392,29 @@ def trim_capture(capture_id: str):
 @subghz_bp.route('/captures/<capture_id>', methods=['DELETE'])
 def delete_capture(capture_id: str):
     if not capture_id.isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid capture_id'}), 400
+        return api_error('Invalid capture_id', 400)
 
     manager = get_subghz_manager()
     if manager.delete_capture(capture_id):
         return jsonify({'status': 'deleted', 'id': capture_id})
-    return jsonify({'status': 'error', 'message': 'Capture not found'}), 404
+    return api_error('Capture not found', 404)
 
 
 @subghz_bp.route('/captures/<capture_id>', methods=['PATCH'])
 def update_capture(capture_id: str):
     if not capture_id.isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid capture_id'}), 400
+        return api_error('Invalid capture_id', 400)
 
     data = request.get_json(silent=True) or {}
     label = data.get('label', '')
 
     if not isinstance(label, str) or len(label) > 100:
-        return jsonify({'status': 'error', 'message': 'Label must be a string (max 100 chars)'}), 400
+        return api_error('Label must be a string (max 100 chars)', 400)
 
     manager = get_subghz_manager()
     if manager.update_capture_label(capture_id, label):
         return jsonify({'status': 'updated', 'id': capture_id, 'label': label})
-    return jsonify({'status': 'error', 'message': 'Capture not found'}), 404
+    return api_error('Capture not found', 404)
 
 
 # ------------------------------------------------------------------

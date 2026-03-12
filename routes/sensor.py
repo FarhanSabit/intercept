@@ -13,6 +13,7 @@ from typing import Any, Generator
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.logging import sensor_logger as logger
 from utils.validation import (
@@ -165,7 +166,7 @@ def start_sensor() -> Response:
 
     with app_module.sensor_lock:
         if app_module.sensor_process:
-            return jsonify({'status': 'error', 'message': 'Sensor already running'}), 409
+            return api_error('Sensor already running', 409)
 
         data = request.json or {}
 
@@ -176,7 +177,7 @@ def start_sensor() -> Response:
             ppm = validate_ppm(data.get('ppm', '0'))
             device = validate_device_index(data.get('device', '0'))
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
 
         # Check for rtl_tcp (remote SDR) connection
         rtl_tcp_host = data.get('rtl_tcp_host')
@@ -190,11 +191,7 @@ def start_sensor() -> Response:
             device_int = int(device)
             error = app_module.claim_sdr_device(device_int, 'sensor', sdr_type_str)
             if error:
-                return jsonify({
-                    'status': 'error',
-                    'error_type': 'DEVICE_BUSY',
-                    'message': error
-                }), 409
+                return api_error(error, 409, error_type='DEVICE_BUSY')
             sensor_active_device = device_int
             sensor_active_sdr_type = sdr_type_str
 
@@ -217,7 +214,7 @@ def start_sensor() -> Response:
                 rtl_tcp_host = validate_rtl_tcp_host(rtl_tcp_host)
                 rtl_tcp_port = validate_rtl_tcp_port(rtl_tcp_port)
             except ValueError as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 400
+                return api_error(str(e), 400)
 
             sdr_device = SDRFactory.create_network_device(rtl_tcp_host, rtl_tcp_port)
             logger.info(f"Using remote SDR: rtl_tcp://{rtl_tcp_host}:{rtl_tcp_port}")
@@ -285,14 +282,14 @@ def start_sensor() -> Response:
                 app_module.release_sdr_device(sensor_active_device, sensor_active_sdr_type or 'rtlsdr')
                 sensor_active_device = None
                 sensor_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': 'rtl_433 not found. Install with: brew install rtl_433'})
+            return api_error('rtl_433 not found. Install with: brew install rtl_433')
         except Exception as e:
             # Release device on failure
             if sensor_active_device is not None:
                 app_module.release_sdr_device(sensor_active_device, sensor_active_sdr_type or 'rtlsdr')
                 sensor_active_device = None
                 sensor_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': str(e)})
+            return api_error(str(e))
 
 
 @sensor_bp.route('/stop_sensor', methods=['POST'])
@@ -346,4 +343,4 @@ def get_rssi_history() -> Response:
     result = {}
     for key, entries in sensor_rssi_history.items():
         result[key] = [{'t': round(t, 1), 'rssi': rssi} for t, rssi in entries]
-    return jsonify({'status': 'success', 'devices': result})
+    return api_success(data={'devices': result})

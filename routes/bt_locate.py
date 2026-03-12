@@ -12,6 +12,7 @@ from collections.abc import Generator
 
 from flask import Blueprint, Response, jsonify, request
 
+from utils.responses import api_success, api_error
 from utils.bluetooth.irk_extractor import get_paired_irks
 from utils.bt_locate import (
     Environment,
@@ -73,26 +74,25 @@ def start_session():
         target.device_key,
         target.fingerprint_id,
     ]):
-        return jsonify({
-            'error': (
-                'At least one target identifier required '
-                '(mac_address, name_pattern, irk_hex, device_id, device_key, or fingerprint_id)'
-            )
-        }), 400
+        return api_error(
+            'At least one target identifier required '
+            '(mac_address, name_pattern, irk_hex, device_id, device_key, or fingerprint_id)',
+            400
+        )
 
     # Parse environment
     env_str = data.get('environment', 'OUTDOOR').upper()
     try:
         environment = Environment[env_str]
     except KeyError:
-        return jsonify({'error': f'Invalid environment: {env_str}'}), 400
+        return api_error(f'Invalid environment: {env_str}', 400)
 
     custom_exponent = data.get('custom_exponent')
     if custom_exponent is not None:
         try:
             custom_exponent = float(custom_exponent)
         except (ValueError, TypeError):
-            return jsonify({'error': 'custom_exponent must be a number'}), 400
+            return api_error('custom_exponent must be a number', 400)
 
     # Fallback coordinates when GPS is unavailable (from user settings)
     fallback_lat = None
@@ -115,16 +115,10 @@ def start_session():
         )
     except RuntimeError as exc:
         logger.warning(f"Unable to start BT Locate session: {exc}")
-        return jsonify({
-            'status': 'error',
-            'error': 'Bluetooth scanner could not be started. Check adapter permissions/capabilities.',
-        }), 503
+        return api_error('Bluetooth scanner could not be started. Check adapter permissions/capabilities.', 503)
     except Exception as exc:
         logger.exception(f"Unexpected error starting BT Locate session: {exc}")
-        return jsonify({
-            'status': 'error',
-            'error': 'Failed to start locate session',
-        }), 500
+        return api_error('Failed to start locate session', 500)
 
     return jsonify({
         'status': 'started',
@@ -216,15 +210,15 @@ def test_resolve_rpa():
     address = data.get('address', '')
 
     if not irk_hex or not address:
-        return jsonify({'error': 'irk_hex and address are required'}), 400
+        return api_error('irk_hex and address are required', 400)
 
     try:
         irk = bytes.fromhex(irk_hex)
     except ValueError:
-        return jsonify({'error': 'Invalid IRK hex string'}), 400
+        return api_error('Invalid IRK hex string', 400)
 
     if len(irk) != 16:
-        return jsonify({'error': 'IRK must be exactly 16 bytes (32 hex characters)'}), 400
+        return api_error('IRK must be exactly 16 bytes (32 hex characters)', 400)
 
     result = resolve_rpa(irk, address)
     return jsonify({
@@ -239,14 +233,14 @@ def set_environment():
     """Update the environment on the active session."""
     session = get_locate_session()
     if not session:
-        return jsonify({'error': 'no active session'}), 400
+        return api_error('no active session', 400)
 
     data = request.get_json() or {}
     env_str = data.get('environment', '').upper()
     try:
         environment = Environment[env_str]
     except KeyError:
-        return jsonify({'error': f'Invalid environment: {env_str}'}), 400
+        return api_error(f'Invalid environment: {env_str}', 400)
 
     custom_exponent = data.get('custom_exponent')
     if custom_exponent is not None:
@@ -268,11 +262,11 @@ def debug_matching():
     """Debug endpoint showing scanner devices and match results."""
     session = get_locate_session()
     if not session:
-        return jsonify({'error': 'no session'})
+        return api_error('no session')
 
     scanner = session._scanner
     if not scanner:
-        return jsonify({'error': 'no scanner'})
+        return api_error('no scanner')
 
     devices = scanner.get_devices(max_age_seconds=30)
     return jsonify({

@@ -19,6 +19,7 @@ from flask import Blueprint, Response, jsonify, request
 
 import app as app_module
 from utils.event_pipeline import process_event
+from utils.responses import api_success, api_error
 from utils.logging import sensor_logger as logger
 from utils.ook import ook_parser_thread
 from utils.process import register_process, safe_terminate, unregister_process
@@ -69,7 +70,7 @@ def start_ook() -> Response:
             if app_module.ook_process.poll() is not None:
                 cleanup_ook(emit_status=False)
             else:
-                return jsonify({'status': 'error', 'message': 'OOK decoder already running'}), 409
+                return api_error('OOK decoder already running', 409)
 
         data = request.json or {}
 
@@ -79,12 +80,12 @@ def start_ook() -> Response:
             ppm = validate_ppm(data.get('ppm', '0'))
             device = validate_device_index(data.get('device', '0'))
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
 
         try:
             encoding = _validate_encoding(data.get('encoding', 'pwm'))
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
 
         # OOK flex decoder timing parameters (server-side range validation)
         try:
@@ -95,11 +96,11 @@ def start_ook() -> Response:
             tolerance = validate_positive_int(data.get('tolerance', 150), 'tolerance', max_val=50000)
             min_bits = validate_positive_int(data.get('min_bits', 8), 'min_bits', max_val=4096)
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': f'Invalid timing parameter: {e}'}), 400
+            return api_error(f'Invalid timing parameter: {e}', 400)
         if min_bits < 1:
-            return jsonify({'status': 'error', 'message': 'min_bits must be >= 1'}), 400
+            return api_error('min_bits must be >= 1', 400)
         if short_pulse < 1 or long_pulse < 1:
-            return jsonify({'status': 'error', 'message': 'Pulse widths must be >= 1'}), 400
+            return api_error('Pulse widths must be >= 1', 400)
         deduplicate = bool(data.get('deduplicate', False))
 
         # Parse SDR type early — needed for device claim
@@ -117,11 +118,7 @@ def start_ook() -> Response:
             device_int = int(device)
             error = app_module.claim_sdr_device(device_int, 'ook', sdr_type_str)
             if error:
-                return jsonify({
-                    'status': 'error',
-                    'error_type': 'DEVICE_BUSY',
-                    'message': error,
-                }), 409
+                return api_error(error, 409, error_type='DEVICE_BUSY')
             ook_active_device = device_int
             ook_active_sdr_type = sdr_type_str
 
@@ -136,7 +133,7 @@ def start_ook() -> Response:
                 rtl_tcp_host = validate_rtl_tcp_host(rtl_tcp_host)
                 rtl_tcp_port = validate_rtl_tcp_port(rtl_tcp_port)
             except ValueError as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 400
+                return api_error(str(e), 400)
             sdr_device = SDRFactory.create_network_device(rtl_tcp_host, rtl_tcp_port)
             logger.info(f'Using remote SDR: rtl_tcp://{rtl_tcp_host}:{rtl_tcp_port}')
         else:
@@ -237,7 +234,7 @@ def start_ook() -> Response:
                 app_module.release_sdr_device(ook_active_device, ook_active_sdr_type or 'rtlsdr')
                 ook_active_device = None
                 ook_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': f'Tool not found: {e.filename}'}), 400
+            return api_error(f'Tool not found: {e.filename}', 400)
 
         except Exception as e:
             try:
@@ -251,7 +248,7 @@ def start_ook() -> Response:
                 app_module.release_sdr_device(ook_active_device, ook_active_sdr_type or 'rtlsdr')
                 ook_active_device = None
                 ook_active_sdr_type = None
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+            return api_error(str(e), 500)
 
 
 def _close_pipe(pipe_obj) -> None:

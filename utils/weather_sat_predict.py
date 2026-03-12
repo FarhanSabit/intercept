@@ -6,6 +6,7 @@ Shared prediction logic used by both the API endpoint and the auto-scheduler.
 from __future__ import annotations
 
 import datetime
+import time
 from typing import Any
 
 from utils.logging import get_logger
@@ -63,14 +64,20 @@ def predict_passes(
 
     from data.satellites import TLE_SATELLITES
 
-    # Use live TLE cache from satellite module if available (refreshed from CelesTrak)
+    # Use live TLE cache from satellite module if available (refreshed from CelesTrak).
+    # Cache the reference locally so repeated calls don't re-import each time.
     tle_source = TLE_SATELLITES
-    try:
-        from routes.satellite import _tle_cache
-        if _tle_cache:
-            tle_source = _tle_cache
-    except ImportError:
-        pass
+    if not hasattr(predict_passes, '_tle_ref') or \
+       (time.time() - getattr(predict_passes, '_tle_ref_ts', 0)) > 3600:
+        try:
+            from routes.satellite import _tle_cache
+            if _tle_cache:
+                predict_passes._tle_ref = _tle_cache
+                predict_passes._tle_ref_ts = time.time()
+        except ImportError:
+            pass
+    if hasattr(predict_passes, '_tle_ref') and predict_passes._tle_ref:
+        tle_source = predict_passes._tle_ref
 
     ts = _get_timescale()
     observer = wgs84.latlon(lat, lon)

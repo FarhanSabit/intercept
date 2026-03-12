@@ -314,17 +314,27 @@ async function initWebsdrLeaflet(mapEl) {
         maxBoundsViscosity: 1.0,
     });
 
+    // Add fallback tiles immediately so the map is visible instantly
+    const fallbackTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19,
+        className: 'tile-layer-cyan',
+    }).addTo(websdrMap);
+
+    // Upgrade tiles in background via Settings (with timeout fallback)
     if (typeof Settings !== 'undefined' && Settings.createTileLayer) {
-        await Settings.init();
-        Settings.createTileLayer().addTo(websdrMap);
-        Settings.registerMap(websdrMap);
-    } else {
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-            subdomains: 'abcd',
-            maxZoom: 19,
-            className: 'tile-layer-cyan',
-        }).addTo(websdrMap);
+        try {
+            await Promise.race([
+                Settings.init(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
+            ]);
+            websdrMap.removeLayer(fallbackTiles);
+            Settings.createTileLayer().addTo(websdrMap);
+            Settings.registerMap(websdrMap);
+        } catch (e) {
+            console.warn('WebSDR: Settings init failed/timed out, using fallback tiles:', e);
+        }
     }
 
     mapEl.style.background = '#1a1d29';

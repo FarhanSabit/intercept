@@ -37,6 +37,7 @@ class SDRCapabilities:
     supports_bias_t: bool = False    # Bias-T support
     supports_ppm: bool = True        # PPM correction support
     tx_capable: bool = False         # Can transmit
+    supports_iq_capture: bool = False  # Raw I/Q sample capture
 
 
 @dataclass
@@ -217,6 +218,15 @@ class CommandBuilder(ABC):
         Raises:
             NotImplementedError: If the SDR type does not support I/Q capture.
         """
+        if not device.capabilities.supports_iq_capture:
+            supported = ', '.join(
+                t.value for t in SDRType
+                if t == SDRType.RTL_SDR  # known IQ-capable types
+            )
+            raise ValueError(
+                f"{device.sdr_type.value} does not support raw I/Q capture. "
+                f"Supported devices: {supported}"
+            )
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support raw I/Q capture"
         )

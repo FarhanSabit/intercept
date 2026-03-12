@@ -29,8 +29,7 @@ def test_predict_passes_invalid_coords(client):
 def test_fetch_celestrak_invalid_category(client):
     """Verify that an unauthorized category is rejected."""
     response = client.get('/satellite/celestrak/category_fake')
-    # The code returns 200 but includes an error message in the JSON body
-    assert response.status_code == 200 
+    assert response.status_code == 400
     assert response.json['status'] == 'error'
     assert 'Invalid category' in response.json['message']
 

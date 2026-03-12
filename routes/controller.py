@@ -22,6 +22,7 @@ import requests
 
 from flask import Blueprint, jsonify, request, Response
 
+from utils.responses import api_success, api_error
 from utils.database import (
     create_agent, get_agent, get_agent_by_name, list_agents,
     update_agent, delete_agent, store_push_payload, get_recent_payloads
@@ -108,28 +109,25 @@ def register_agent():
     base_url = data.get('base_url', '').strip()
 
     if not name:
-        return jsonify({'status': 'error', 'message': 'Agent name is required'}), 400
+        return api_error('Agent name is required', 400)
     if not base_url:
-        return jsonify({'status': 'error', 'message': 'Base URL is required'}), 400
+        return api_error('Base URL is required', 400)
 
     # Validate URL format
     from urllib.parse import urlparse
     try:
         parsed = urlparse(base_url)
         if parsed.scheme not in ('http', 'https'):
-            return jsonify({'status': 'error', 'message': 'URL must start with http:// or https://'}), 400
+            return api_error('URL must start with http:// or https://', 400)
         if not parsed.netloc:
-            return jsonify({'status': 'error', 'message': 'Invalid URL format'}), 400
+            return api_error('Invalid URL format', 400)
     except Exception:
-        return jsonify({'status': 'error', 'message': 'Invalid URL format'}), 400
+        return api_error('Invalid URL format', 400)
 
     # Check if agent already exists
     existing = get_agent_by_name(name)
     if existing:
-        return jsonify({
-            'status': 'error',
-            'message': f'Agent with name "{name}" already exists'
-        }), 409
+        return api_error(f'Agent with name "{name}" already exists', 409)
 
     # Try to connect and get capabilities
     api_key = data.get('api_key', '').strip() or None
@@ -171,7 +169,7 @@ def register_agent():
 
     except Exception as e:
         logger.exception("Failed to create agent")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @controller_bp.route('/agents/<int:agent_id>', methods=['GET'])
@@ -179,7 +177,7 @@ def get_agent_detail(agent_id: int):
     """Get details of a specific agent."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     # Optionally refresh from agent
     refresh = request.args.get('refresh', 'false').lower() == 'true'
@@ -215,7 +213,7 @@ def update_agent_detail(agent_id: int):
     """Update an agent's details."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     data = request.json or {}
 
@@ -237,7 +235,7 @@ def remove_agent(agent_id: int):
     """Delete an agent."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     delete_agent(agent_id)
     return jsonify({'status': 'success', 'message': 'Agent deleted'})
@@ -248,7 +246,7 @@ def refresh_agent_metadata(agent_id: int):
     """Refresh an agent's capabilities and status."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     try:
         client = create_client_from_agent(agent)
@@ -274,16 +272,10 @@ def refresh_agent_metadata(agent_id: int):
                 'metadata': metadata
             })
         else:
-            return jsonify({
-                'status': 'error',
-                'message': 'Agent is not reachable'
-            }), 503
+            return api_error('Agent is not reachable', 503)
 
     except (AgentHTTPError, AgentConnectionError) as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Failed to reach agent: {e}'
-        }), 503
+        return api_error(f'Failed to reach agent: {e}', 503)
 
 
 # =============================================================================
@@ -295,7 +287,7 @@ def get_agent_status(agent_id: int):
     """Get an agent's current status including running modes."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     try:
         client = create_client_from_agent(agent)
@@ -307,10 +299,7 @@ def get_agent_status(agent_id: int):
             'agent_status': status
         })
     except (AgentHTTPError, AgentConnectionError) as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Failed to reach agent: {e}'
-        }), 503
+        return api_error(f'Failed to reach agent: {e}', 503)
 
 
 @controller_bp.route('/agents/health', methods=['GET'])
@@ -384,7 +373,7 @@ def proxy_start_mode(agent_id: int, mode: str):
     """Start a mode on a remote agent."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     params = request.json or {}
 
@@ -403,15 +392,9 @@ def proxy_start_mode(agent_id: int, mode: str):
         })
 
     except AgentConnectionError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Cannot connect to agent: {e}'
-        }), 503
+        return api_error(f'Cannot connect to agent: {e}', 503)
     except AgentHTTPError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Agent error: {e}'
-        }), 502
+        return api_error(f'Agent error: {e}', 502)
 
 
 @controller_bp.route('/agents/<int:agent_id>/<mode>/stop', methods=['POST'])
@@ -419,7 +402,7 @@ def proxy_stop_mode(agent_id: int, mode: str):
     """Stop a mode on a remote agent."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     try:
         client = create_client_from_agent(agent)
@@ -435,15 +418,9 @@ def proxy_stop_mode(agent_id: int, mode: str):
         })
 
     except AgentConnectionError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Cannot connect to agent: {e}'
-        }), 503
+        return api_error(f'Cannot connect to agent: {e}', 503)
     except AgentHTTPError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Agent error: {e}'
-        }), 502
+        return api_error(f'Agent error: {e}', 502)
 
 
 @controller_bp.route('/agents/<int:agent_id>/<mode>/status', methods=['GET'])
@@ -451,7 +428,7 @@ def proxy_mode_status(agent_id: int, mode: str):
     """Get mode status from a remote agent."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     try:
         client = create_client_from_agent(agent)
@@ -465,10 +442,7 @@ def proxy_mode_status(agent_id: int, mode: str):
         })
 
     except (AgentHTTPError, AgentConnectionError) as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Agent error: {e}'
-        }), 502
+        return api_error(f'Agent error: {e}', 502)
 
 
 @controller_bp.route('/agents/<int:agent_id>/<mode>/data', methods=['GET'])
@@ -476,7 +450,7 @@ def proxy_mode_data(agent_id: int, mode: str):
     """Get current data from a remote agent."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     try:
         client = create_client_from_agent(agent)
@@ -495,10 +469,7 @@ def proxy_mode_data(agent_id: int, mode: str):
         })
 
     except (AgentHTTPError, AgentConnectionError) as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Agent error: {e}'
-        }), 502
+        return api_error(f'Agent error: {e}', 502)
 
 
 @controller_bp.route('/agents/<int:agent_id>/<mode>/stream')
@@ -506,7 +477,7 @@ def proxy_mode_stream(agent_id: int, mode: str):
     """Proxy SSE stream from a remote agent."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     client = create_client_from_agent(agent)
     query = request.query_string.decode('utf-8')
@@ -547,7 +518,7 @@ def proxy_wifi_monitor(agent_id: int):
     """Toggle monitor mode on a remote agent's WiFi interface."""
     agent = get_agent(agent_id)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Agent not found'}), 404
+        return api_error('Agent not found', 404)
 
     data = request.json or {}
 
@@ -582,15 +553,9 @@ def proxy_wifi_monitor(agent_id: int):
         })
 
     except AgentConnectionError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Cannot connect to agent: {e}'
-        }), 503
+        return api_error(f'Cannot connect to agent: {e}', 503)
     except AgentHTTPError as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Agent error: {e}'
-        }), 502
+        return api_error(f'Agent error: {e}', 502)
 
 
 # =============================================================================
@@ -616,23 +581,23 @@ def ingest_push_data():
     """
     data = request.json
     if not data:
-        return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+        return api_error('No data provided', 400)
 
     agent_name = data.get('agent_name')
     if not agent_name:
-        return jsonify({'status': 'error', 'message': 'agent_name required'}), 400
+        return api_error('agent_name required', 400)
 
     # Find agent
     agent = get_agent_by_name(agent_name)
     if not agent:
-        return jsonify({'status': 'error', 'message': 'Unknown agent'}), 401
+        return api_error('Unknown agent', 401)
 
     # Validate API key if configured
     if agent.get('api_key'):
         provided_key = request.headers.get('X-API-Key', '')
         if provided_key != agent['api_key']:
             logger.warning(f"Invalid API key from agent {agent_name}")
-            return jsonify({'status': 'error', 'message': 'Invalid API key'}), 401
+            return api_error('Invalid API key', 401)
 
     # Store payload
     try:
@@ -662,7 +627,7 @@ def ingest_push_data():
 
     except Exception as e:
         logger.exception("Failed to store push payload")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @controller_bp.route('/api/payloads', methods=['GET'])
@@ -783,7 +748,7 @@ def add_location_observation():
     required = ['device_id', 'agent_name', 'agent_lat', 'agent_lon', 'rssi']
     for field in required:
         if field not in data:
-            return jsonify({'status': 'error', 'message': f'Missing required field: {field}'}), 400
+            return api_error(f'Missing required field: {field}', 400)
 
     # Look up agent GPS from database if not provided
     agent_lat = data.get('agent_lat')
@@ -797,10 +762,7 @@ def add_location_observation():
             agent_lon = coords.get('lon') or coords.get('longitude')
 
     if agent_lat is None or agent_lon is None:
-        return jsonify({
-            'status': 'error',
-            'message': 'Agent GPS coordinates required'
-        }), 400
+        return api_error('Agent GPS coordinates required', 400)
 
     estimate = device_tracker.add_observation(
         device_id=data['device_id'],
@@ -837,10 +799,7 @@ def estimate_location():
 
     observations = data.get('observations', [])
     if len(observations) < 2:
-        return jsonify({
-            'status': 'error',
-            'message': 'At least 2 observations required'
-        }), 400
+        return api_error('At least 2 observations required', 400)
 
     environment = data.get('environment', 'outdoor')
 
@@ -852,7 +811,7 @@ def estimate_location():
         })
     except Exception as e:
         logger.exception("Location estimation failed")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @controller_bp.route('/api/location/<device_id>', methods=['GET'])
@@ -904,7 +863,7 @@ def get_devices_near():
         lon = float(request.args.get('lon', 0))
         radius = float(request.args.get('radius', 100))
     except (ValueError, TypeError):
-        return jsonify({'status': 'error', 'message': 'Invalid coordinates'}), 400
+        return api_error('Invalid coordinates', 400)
 
     results = device_tracker.get_devices_near(lat, lon, radius)
 

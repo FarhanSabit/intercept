@@ -10,6 +10,7 @@ import queue
 
 from flask import Blueprint, jsonify, request, Response, send_file
 
+from utils.responses import api_success, api_error
 from utils.logging import get_logger
 from utils.sse import sse_stream
 from utils.validation import validate_device_index, validate_gain, validate_latitude, validate_longitude, validate_elevation, validate_rtl_tcp_host, validate_rtl_tcp_port
@@ -174,7 +175,7 @@ def start_capture():
             rtl_tcp_host = validate_rtl_tcp_host(rtl_tcp_host)
             rtl_tcp_port = validate_rtl_tcp_port(rtl_tcp_port)
         except ValueError as e:
-            return jsonify({'status': 'error', 'message': str(e)}), 400
+            return api_error(str(e), 400)
 
     # Claim SDR device (skip for remote rtl_tcp)
     if not rtl_tcp_host:
@@ -182,11 +183,7 @@ def start_capture():
             import app as app_module
             error = app_module.claim_sdr_device(device_index, 'weather_sat', sdr_type_str)
             if error:
-                return jsonify({
-                    'status': 'error',
-                    'error_type': 'DEVICE_BUSY',
-                    'message': error,
-                }), 409
+                return api_error(error, 409, error_type='DEVICE_BUSY')
         except ImportError:
             pass
 
@@ -417,15 +414,15 @@ def get_image(filename: str):
 
     # Security: only allow safe filenames
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if not (filename.endswith('.png') or filename.endswith('.jpg') or filename.endswith('.jpeg')):
-        return jsonify({'status': 'error', 'message': 'Only PNG/JPG files supported'}), 400
+        return api_error('Only PNG/JPG files supported', 400)
 
     image_path = decoder._output_dir / filename
 
     if not image_path.exists():
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
     mimetype = 'image/png' if filename.endswith('.png') else 'image/jpeg'
     return send_file(image_path, mimetype=mimetype)
@@ -444,12 +441,12 @@ def delete_image(filename: str):
     decoder = get_weather_sat_decoder()
 
     if not filename.replace('_', '').replace('-', '').replace('.', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid filename'}), 400
+        return api_error('Invalid filename', 400)
 
     if decoder.delete_image(filename):
         return jsonify({'status': 'deleted', 'filename': filename})
     else:
-        return jsonify({'status': 'error', 'message': 'Image not found'}), 404
+        return api_error('Image not found', 404)
 
 
 @weather_sat_bp.route('/images', methods=['DELETE'])
@@ -500,17 +497,14 @@ def get_passes():
     raw_lon = request.args.get('longitude')
 
     if raw_lat is None or raw_lon is None:
-        return jsonify({
-            'status': 'error',
-            'message': 'latitude and longitude parameters required'
-        }), 400
+        return api_error('latitude and longitude parameters required', 400)
 
     try:
         lat = validate_latitude(raw_lat)
         lon = validate_longitude(raw_lon)
     except ValueError as e:
         logger.warning('Invalid coordinates in get_passes: %s', e)
-        return jsonify({'status': 'error', 'message': 'Invalid coordinates'}), 400
+        return api_error('Invalid coordinates', 400)
 
     hours = max(1, min(request.args.get('hours', 24, type=int), 72))
     min_elevation = max(0, min(request.args.get('min_elevation', 15, type=float), 90))
@@ -668,10 +662,10 @@ def skip_pass(pass_id: str):
     from utils.weather_sat_scheduler import get_weather_sat_scheduler
 
     if not pass_id.replace('_', '').replace('-', '').isalnum():
-        return jsonify({'status': 'error', 'message': 'Invalid pass ID'}), 400
+        return api_error('Invalid pass ID', 400)
 
     scheduler = get_weather_sat_scheduler()
     if scheduler.skip_pass(pass_id):
         return jsonify({'status': 'skipped', 'pass_id': pass_id})
     else:
-        return jsonify({'status': 'error', 'message': 'Pass not found or already processed'}), 404
+        return api_error('Pass not found or already processed', 404)

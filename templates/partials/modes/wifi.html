@@ -3,11 +3,11 @@
                     <!-- Scan Mode Tabs -->
                     <div class="section">
                         <h3>Signal Source</h3>
-                        <div class="wifi-scan-mode-tabs" style="display: flex; gap: 4px;">
-                            <button id="wifiScanModeQuick" class="wifi-mode-tab active" style="flex: 1; padding: 8px; font-size: 11px; background: var(--accent-green); color: #000; border: none; border-radius: 4px; cursor: pointer;">
+                        <div class="wifi-scan-mode-tabs" role="tablist" aria-label="Scan mode" style="display: flex; gap: 4px;">
+                            <button id="wifiScanModeQuick" class="wifi-mode-tab active" role="tab" aria-selected="true" style="flex: 1; padding: 8px; font-size: 11px; background: var(--accent-green); color: #000; border: none; border-radius: 4px; cursor: pointer;">
                                 Quick Scan
                             </button>
-                            <button id="wifiScanModeDeep" class="wifi-mode-tab" style="flex: 1; padding: 8px; font-size: 11px; background: var(--bg-tertiary); color: #888; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;">
+                            <button id="wifiScanModeDeep" class="wifi-mode-tab" role="tab" aria-selected="false" style="flex: 1; padding: 8px; font-size: 11px; background: var(--bg-tertiary); color: #888; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;">
                                 Deep Scan
                             </button>
                         </div>
@@ -121,7 +121,7 @@
                             <label for="deauthCount">Deauth Count</label>
                             <input type="text" id="deauthCount" value="5" placeholder="5">
                         </div>
-                        <button class="preset-btn" onclick="sendDeauth()" style="width: 100%; border-color: var(--accent-red); color: var(--accent-red);">
+                        <button class="preset-btn btn-danger-outline" onclick="sendDeauth()" style="width: 100%;">
                             Send Deauth
                         </button>
                     </div>

@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request, Response
 
 import app as app_module
 from utils.correlation import get_correlations
+from utils.responses import api_success, api_error
 from utils.logging import get_logger
 
 logger = get_logger('intercept.correlation')
@@ -39,18 +40,14 @@ def get_device_correlations() -> Response:
             include_historical=include_historical
         )
 
-        return jsonify({
-            'status': 'success',
+        return api_success(data={
             'correlations': correlations,
             'wifi_count': len(wifi_devices),
             'bt_count': len(bt_devices)
         })
     except Exception as e:
         logger.error(f"Error calculating correlations: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return api_error(str(e), 500)
 
 
 @correlation_bp.route('/analyze', methods=['POST'])
@@ -67,10 +64,7 @@ def analyze_correlation() -> Response:
     bt_mac = data.get('bt_mac')
 
     if not wifi_mac or not bt_mac:
-        return jsonify({
-            'status': 'error',
-            'message': 'wifi_mac and bt_mac are required'
-        }), 400
+        return api_error('wifi_mac and bt_mac are required', 400)
 
     try:
         # Get device data
@@ -81,16 +75,10 @@ def analyze_correlation() -> Response:
         bt_device = app_module.bt_devices.get(bt_mac)
 
         if not wifi_device:
-            return jsonify({
-                'status': 'error',
-                'message': f'WiFi device {wifi_mac} not found'
-            }), 404
+            return api_error(f'WiFi device {wifi_mac} not found', 404)
 
         if not bt_device:
-            return jsonify({
-                'status': 'error',
-                'message': f'Bluetooth device {bt_mac} not found'
-            }), 404
+            return api_error(f'Bluetooth device {bt_mac} not found', 404)
 
         # Calculate correlation for this specific pair
         correlations = get_correlations(
@@ -101,19 +89,9 @@ def analyze_correlation() -> Response:
         )
 
         if correlations:
-            return jsonify({
-                'status': 'success',
-                'correlation': correlations[0]
-            })
+            return api_success(data={'correlation': correlations[0]})
         else:
-            return jsonify({
-                'status': 'success',
-                'correlation': None,
-                'message': 'No correlation detected between these devices'
-            })
+            return api_success(data={'correlation': None}, message='No correlation detected between these devices')
     except Exception as e:
         logger.error(f"Error analyzing correlation: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return api_error(str(e), 500)

@@ -45,7 +45,7 @@ def close_process_pipes(process: subprocess.Popen) -> None:
 
 
 def cleanup_all_processes() -> None:
-    """Clean up all registered processes on exit."""
+    """Clean up all registered processes and flush DataStores on exit."""
     logger.info("Cleaning up all spawned processes...")
     with _process_lock:
         for process in _spawned_processes:
@@ -59,6 +59,14 @@ def cleanup_all_processes() -> None:
                     logger.warning(f"Error cleaning up process: {e}")
             close_process_pipes(process)
         _spawned_processes.clear()
+
+    # Stop DataStore cleanup timers and run final cleanup
+    try:
+        from utils.cleanup import cleanup_manager
+        cleanup_manager.cleanup_now()
+        cleanup_manager.stop()
+    except Exception as e:
+        logger.warning(f"Error during DataStore cleanup: {e}")
 
 
 def safe_terminate(process: subprocess.Popen | None, timeout: float = 2.0) -> bool:

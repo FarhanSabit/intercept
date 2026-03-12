@@ -22,6 +22,7 @@ import queue
 import threading
 import platform
 import subprocess
+from pathlib import Path
 
 from typing import Any
 
@@ -48,6 +49,16 @@ try:
     _has_limiter = True
 except ImportError:
     _has_limiter = False
+try:
+    from flask_compress import Compress
+    _has_compress = True
+except ImportError:
+    _has_compress = False
+try:
+    from flask_wtf.csrf import CSRFProtect
+    _has_csrf = True
+except ImportError:
+    _has_csrf = False
 # Track application start time for uptime calculation
 import time as _time
 _app_start_time = _time.time()
@@ -55,7 +66,29 @@ logger = logging.getLogger('intercept.database')
 
 # Create Flask app
 app = Flask(__name__)
-app.secret_key = "signals_intelligence_secret" # Required for flash messages
+def _load_or_generate_secret_key():
+    """Load secret key from env var or instance file, generating if needed."""
+    env_key = os.environ.get('INTERCEPT_SECRET_KEY')
+    if env_key:
+        return env_key
+    key_path = Path('instance/secret.key')
+    if key_path.exists():
+        return key_path.read_text().strip()
+    key_path.parent.mkdir(exist_ok=True)
+    key = os.urandom(32).hex()
+    key_path.write_text(key)
+    return key
+
+app.secret_key = _load_or_generate_secret_key()
+
+# Set up HTTP compression (gzip/brotli for HTML, CSS, JS, JSON)
+if _has_compress:
+    Compress(app)
+else:
+    logging.getLogger('intercept').warning(
+        "flask-compress not installed – HTTP compression disabled. "
+        "Install with: pip install flask-compress"
+    )
 
 # Set up rate limiting
 if _has_limiter:
@@ -76,6 +109,16 @@ else:
                 return f
             return decorator
     limiter = _NoopLimiter()
+
+# Set up CSRF protection
+if _has_csrf:
+    csrf = CSRFProtect(app)
+else:
+    logging.getLogger('intercept').warning(
+        "flask-wtf not installed – CSRF protection disabled. "
+        "Install with: pip install flask-wtf"
+    )
+    csrf = None
 
 # Disable Werkzeug debugger PIN (not needed for local development tool)
 os.environ['WERKZEUG_DEBUG_PIN'] = 'off'
@@ -106,6 +149,12 @@ def add_security_headers(response):
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     # Permissions policy (disable unnecessary features)
     response.headers['Permissions-Policy'] = 'geolocation=(self), microphone=()'
+    # Cache-Control for static assets
+    if request.path.startswith('/static/'):
+        if '/vendor/' in request.path:
+            response.headers['Cache-Control'] = 'public, max-age=604800'  # 7 days for vendored libs
+        else:
+            response.headers['Cache-Control'] = 'public, max-age=86400'  # 24h for app assets
     return response
 
 
@@ -803,13 +852,43 @@ def _get_wifi_health() -> tuple[bool, int, int]:
 @app.route('/health')
 def health_check() -> Response:
     """Health check endpoint for monitoring."""
+    import platform
     import time
     bt_active, bt_device_count = _get_bluetooth_health()
     wifi_active, wifi_network_count, wifi_client_count = _get_wifi_health()
-    return jsonify({
-        'status': 'healthy',
+
+    # Database health check
+    db_ok = True
+    try:
+        from utils.database import get_connection
+        get_connection().execute('SELECT 1')
+    except Exception:
+        db_ok = False
+
+    # SDR device count (cached, non-blocking)
+    sdr_count = 0
+    try:
+        from utils.sdr.detection import get_cached_devices
+        cached = get_cached_devices()
+        if cached is not None:
+            sdr_count = len(cached)
+    except (ImportError, Exception):
+        pass
+
+    overall_status = 'healthy' if db_ok else 'degraded'
+    status_code = 200 if db_ok else 503
+
+    response = jsonify({
+        'status': overall_status,
         'version': VERSION,
         'uptime_seconds': round(time.time() - _app_start_time, 2),
+        'system': {
+            'python_version': platform.python_version(),
+            'platform': platform.platform(),
+        },
+        'database': db_ok,
+        'sdr_devices': sdr_count,
+        'rate_limiting': _has_limiter,
         'processes': {
             'pager': current_process is not None and (current_process.poll() is None if current_process else False),
             'sensor': sensor_process is not None and (sensor_process.poll() is None if sensor_process else False),
@@ -843,9 +922,12 @@ def health_check() -> Response:
             'dsc_messages_count': len(dsc_messages),
         }
     })
+    response.status_code = status_code
+    return response
 
 
 @app.route('/killall', methods=['POST'])
+@(csrf.exempt if csrf else lambda f: f)
 def kill_all() -> Response:
     """Kill all decoder, WiFi, and Bluetooth processes."""
     global current_process, sensor_process, wifi_process, adsb_process, ais_process, acars_process

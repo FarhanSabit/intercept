@@ -23,6 +23,7 @@ from utils.wifi import (
     SCAN_MODE_QUICK,
     SCAN_MODE_DEEP,
 )
+from utils.responses import api_success, api_error
 from utils.sse import format_sse
 from utils.validation import validate_wifi_channel
 from utils.event_pipeline import process_event
@@ -110,13 +111,13 @@ def start_deep_scan():
         try:
             channel_list = [validate_wifi_channel(c) for c in channel_list]
         except (TypeError, ValueError):
-            return jsonify({'error': 'Invalid channels'}), 400
+            return api_error('Invalid channels', 400)
 
     if channel:
         try:
             channel = validate_wifi_channel(channel)
         except ValueError:
-            return jsonify({'error': 'Invalid channel'}), 400
+            return api_error('Invalid channel', 400)
 
     scanner = get_wifi_scanner()
     success = scanner.start_deep_scan(
@@ -133,10 +134,7 @@ def start_deep_scan():
             'interface': interface or scanner._capabilities.monitor_interface,
         })
     else:
-        return jsonify({
-            'status': 'error',
-            'error': scanner._status.error,
-        }), 400
+        return api_error(scanner._status.error or 'Scan failed', 400)
 
 
 @wifi_v2_bp.route('/scan/stop', methods=['POST'])
@@ -235,7 +233,7 @@ def get_network(bssid):
     if network:
         return jsonify(network.to_dict())
     else:
-        return jsonify({'error': 'Network not found'}), 404
+        return api_error('Network not found', 404)
 
 
 @wifi_v2_bp.route('/clients', methods=['GET'])
@@ -282,7 +280,7 @@ def get_client(mac):
     if client:
         return jsonify(client.to_dict())
     else:
-        return jsonify({'error': 'Client not found'}), 404
+        return api_error('Client not found', 404)
 
 
 @wifi_v2_bp.route('/probes', methods=['GET'])

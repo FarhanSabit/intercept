@@ -20,6 +20,8 @@ from typing import Any
 
 from flask import Blueprint, Flask, Response, jsonify, request
 
+from utils.responses import api_success, api_error
+
 try:
     from flask_sock import Sock
     WEBSOCKET_AVAILABLE = True
@@ -170,7 +172,7 @@ def meteor_events_export():
     """Export events as CSV or JSON."""
     detector = _detector
     if not detector:
-        return jsonify({'error': 'No active session'}), 400
+        return api_error('No active session', 400)
 
     fmt = request.args.get('format', 'json').lower()
     if fmt == 'csv':

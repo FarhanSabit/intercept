@@ -4,6 +4,7 @@ Offline mode routes - Asset management and settings for offline operation.
 
 from flask import Blueprint, jsonify, request
 from utils.database import get_setting, set_setting
+from utils.responses import api_success, api_error
 import os
 
 offline_bp = Blueprint('offline', __name__, url_prefix='/offline')
@@ -64,10 +65,7 @@ def get_offline_settings():
 def get_settings():
     """Get current offline settings."""
     settings = get_offline_settings()
-    return jsonify({
-        'status': 'success',
-        'settings': settings
-    })
+    return api_success(data={'settings': settings})
 
 
 @offline_bp.route('/settings', methods=['POST'])
@@ -75,14 +73,14 @@ def save_setting():
     """Save an offline setting."""
     data = request.get_json()
     if not data or 'key' not in data or 'value' not in data:
-        return jsonify({'status': 'error', 'message': 'Missing key or value'}), 400
+        return api_error('Missing key or value', 400)
 
     key = data['key']
     value = data['value']
 
     # Validate key is an allowed setting
     if key not in OFFLINE_DEFAULTS:
-        return jsonify({'status': 'error', 'message': f'Unknown setting: {key}'}), 400
+        return api_error(f'Unknown setting: {key}', 400)
 
     # Validate value type matches default
     default_type = type(OFFLINE_DEFAULTS[key])
@@ -94,18 +92,11 @@ def save_setting():
             else:
                 value = default_type(value)
         except (ValueError, TypeError):
-            return jsonify({
-                'status': 'error',
-                'message': f'Invalid value type for {key}'
-            }), 400
+            return api_error(f'Invalid value type for {key}', 400)
 
     set_setting(key, value)
 
-    return jsonify({
-        'status': 'success',
-        'key': key,
-        'value': value
-    })
+    return api_success(data={'key': key, 'value': value})
 
 
 @offline_bp.route('/status', methods=['GET'])
@@ -134,8 +125,7 @@ def get_status():
         if not available:
             all_available = False
 
-    return jsonify({
-        'status': 'success',
+    return api_success(data={
         'all_available': all_available,
         'assets': results,
         'offline_enabled': get_setting('offline.enabled', False)
@@ -147,11 +137,11 @@ def check_asset():
     """Check if a specific asset file exists."""
     path = request.args.get('path', '')
     if not path:
-        return jsonify({'status': 'error', 'message': 'Missing path parameter'}), 400
+        return api_error('Missing path parameter', 400)
 
     # Security: only allow checking within static/vendor
     if not path.startswith('/static/vendor/'):
-        return jsonify({'status': 'error', 'message': 'Invalid path'}), 400
+        return api_error('Invalid path', 400)
 
     # Remove leading slash and construct full path
     relative_path = path.lstrip('/')
@@ -160,8 +150,4 @@ def check_asset():
 
     exists = os.path.exists(full_path)
 
-    return jsonify({
-        'status': 'success',
-        'path': path,
-        'exists': exists
-    })
+    return api_success(data={'path': path, 'exists': exists})

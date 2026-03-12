@@ -17,6 +17,7 @@ from typing import Any, Generator
 
 from flask import Blueprint, Response, jsonify, request
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.acars_translator import translate_message
 from utils.constants import (
@@ -219,18 +220,12 @@ def start_acars() -> Response:
 
     with app_module.acars_lock:
         if app_module.acars_process and app_module.acars_process.poll() is None:
-            return jsonify({
-                'status': 'error',
-                'message': 'ACARS decoder already running'
-            }), 409
+            return api_error('ACARS decoder already running', 409)
 
     # Check for acarsdec
     acarsdec_path = find_acarsdec()
     if not acarsdec_path:
-        return jsonify({
-            'status': 'error',
-            'message': 'acarsdec not found. Install with: sudo apt install acarsdec'
-        }), 400
+        return api_error('acarsdec not found. Install with: sudo apt install acarsdec', 400)
 
     data = request.json or {}
 
@@ -240,7 +235,7 @@ def start_acars() -> Response:
         gain = validate_gain(data.get('gain', '40'))
         ppm = validate_ppm(data.get('ppm', '0'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     # Resolve SDR type for device selection
     sdr_type_str = data.get('sdr_type', 'rtlsdr')
@@ -249,11 +244,7 @@ def start_acars() -> Response:
     device_int = int(device)
     error = app_module.claim_sdr_device(device_int, 'acars', sdr_type_str)
     if error:
-        return jsonify({
-            'status': 'error',
-            'error_type': 'DEVICE_BUSY',
-            'message': error
-        }), 409
+        return api_error(error, 409, error_type='DEVICE_BUSY')
 
     acars_active_device = device_int
     acars_active_sdr_type = sdr_type_str
@@ -372,7 +363,7 @@ def start_acars() -> Response:
             if stderr:
                 error_msg += f': {stderr[:500]}'
             logger.error(error_msg)
-            return jsonify({'status': 'error', 'message': error_msg}), 500
+            return api_error(error_msg, 500)
 
         app_module.acars_process = process
         register_process(process)
@@ -399,7 +390,7 @@ def start_acars() -> Response:
             acars_active_device = None
             acars_active_sdr_type = None
         logger.error(f"Failed to start ACARS decoder: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @acars_bp.route('/stop', methods=['POST'])
@@ -409,10 +400,7 @@ def stop_acars() -> Response:
 
     with app_module.acars_lock:
         if not app_module.acars_process:
-            return jsonify({
-                'status': 'error',
-                'message': 'ACARS decoder not running'
-            }), 400
+            return api_error('ACARS decoder not running', 400)
 
         try:
             app_module.acars_process.terminate()

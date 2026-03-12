@@ -252,6 +252,8 @@ const WeatherSat = (function() {
         addConsoleEntry('Starting capture...', 'info');
         updateStatusUI('connecting', 'Starting...');
 
+        const startBtn = document.getElementById('weatherSatStartBtn');
+        if (startBtn) startBtn.classList.add('btn-loading');
         try {
             const config = {
                 satellite,
@@ -295,6 +297,8 @@ const WeatherSat = (function() {
                 onRetry: () => start()
             });
             updateStatusUI('idle', 'Error');
+        } finally {
+            if (startBtn) startBtn.classList.remove('btn-loading');
         }
     }
 
@@ -445,6 +449,8 @@ const WeatherSat = (function() {
         };
 
         eventSource.onerror = () => {
+            // Close the failed connection first to avoid leaking it
+            stopStream();
             setTimeout(() => {
                 if (isRunning || schedulerEnabled) startStream();
             }, 3000);
@@ -887,18 +893,28 @@ const WeatherSat = (function() {
                 preferCanvas: true,
             });
 
+            // Add fallback tiles immediately so the map is visible instantly
+            const fallbackTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd',
+                maxZoom: 18,
+                noWrap: false,
+                crossOrigin: true,
+                className: 'tile-layer-cyan',
+            }).addTo(groundMap);
+
+            // Upgrade tiles in background via Settings (with timeout fallback)
             if (typeof Settings !== 'undefined' && Settings.createTileLayer) {
-                await Settings.init();
-                Settings.createTileLayer().addTo(groundMap);
-                Settings.registerMap(groundMap);
-            } else {
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                    subdomains: 'abcd',
-                    maxZoom: 18,
-                    noWrap: false,
-                    crossOrigin: true,
-                    className: 'tile-layer-cyan',
-                }).addTo(groundMap);
+                try {
+                    await Promise.race([
+                        Settings.init(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
+                    ]);
+                    groundMap.removeLayer(fallbackTiles);
+                    Settings.createTileLayer().addTo(groundMap);
+                    Settings.registerMap(groundMap);
+                } catch (e) {
+                    console.warn('WeatherSat: Settings init failed/timed out, using fallback tiles:', e);
+                }
             }
 
             groundGridLayer = L.layerGroup().addTo(groundMap);
@@ -1874,10 +1890,24 @@ const WeatherSat = (function() {
         }
     }
 
+    /**
+     * Unconditionally tear down the SSE stream on mode switch so we don't
+     * leak browser connections.  The server-side capture/scheduler keeps
+     * running independently — the stream will reconnect on next init().
+     */
+    function destroy() {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+        stopStream();
+    }
+
     // Public API
     return {
         init,
         suspend,
+        destroy,
         start,
         stop,
         startPass,

@@ -87,7 +87,8 @@ class RTLSDRCommandBuilder(CommandBuilder):
         sample_rates=[250000, 1024000, 1800000, 2048000, 2400000],
         supports_bias_t=True,
         supports_ppm=True,
-        tx_capable=False
+        tx_capable=False,
+        supports_iq_capture=True
     )
 
     def _get_device_arg(self, device: SDRDevice) -> str:

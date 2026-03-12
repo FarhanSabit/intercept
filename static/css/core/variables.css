@@ -160,7 +160,7 @@
     /* ============================================
        LAYOUT
        ============================================ */
-    --header-height: 60px;
+    --header-height: 48px;
     --nav-height: 44px;
     --sidebar-width: 280px;
     --stats-strip-height: 36px;
@@ -224,8 +224,8 @@
 
     --text-primary: #122034;
     --text-secondary: #3a4a5f;
-    --text-dim: #6b7c93;
-    --text-muted: #aab6c8;
+    --text-dim: #566a7f;
+    --text-muted: #7a8a9e;
     --text-inverse: #f4f7fb;
 
     --border-color: #d1d9e6;

@@ -20,6 +20,7 @@ from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 
+from utils.responses import api_success, api_error
 import app as app_module
 from utils.constants import (
     MAX_RADIOSONDE_AGE_SECONDS,
@@ -479,10 +480,7 @@ def start_radiosonde():
 
     with app_module.radiosonde_lock:
         if radiosonde_running:
-            return jsonify({
-                'status': 'already_running',
-                'message': 'Radiosonde tracking already active',
-            }), 409
+            return api_error('Radiosonde tracking already active', 409)
 
     data = request.json or {}
 
@@ -491,7 +489,7 @@ def start_radiosonde():
         gain = float(validate_gain(data.get('gain', '40')))
         device = validate_device_index(data.get('device', '0'))
     except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        return api_error(str(e), 400)
 
     freq_min = data.get('freq_min', 400.0)
     freq_max = data.get('freq_max', 406.0)
@@ -503,7 +501,7 @@ def start_radiosonde():
         if freq_min >= freq_max:
             raise ValueError("Min frequency must be less than max")
     except (ValueError, TypeError) as e:
-        return jsonify({'status': 'error', 'message': f'Invalid frequency range: {e}'}), 400
+        return api_error(f'Invalid frequency range: {e}', 400)
 
     bias_t = data.get('bias_t', False)
     ppm = int(data.get('ppm', 0))
@@ -525,10 +523,7 @@ def start_radiosonde():
     # Find auto_rx
     auto_rx_path = find_auto_rx()
     if not auto_rx_path:
-        return jsonify({
-            'status': 'error',
-            'message': 'radiosonde_auto_rx not found. Install from https://github.com/projecthorus/radiosonde_auto_rx',
-        }), 400
+        return api_error('radiosonde_auto_rx not found. Install from https://github.com/projecthorus/radiosonde_auto_rx', 400)
 
     # Get SDR type
     sdr_type_str = data.get('sdr_type', 'rtlsdr')
@@ -552,11 +547,7 @@ def start_radiosonde():
     device_int = int(device)
     error = app_module.claim_sdr_device(device_int, 'radiosonde', sdr_type_str)
     if error:
-        return jsonify({
-            'status': 'error',
-            'error_type': 'DEVICE_BUSY',
-            'message': error,
-        }), 409
+        return api_error(error, 409, error_type='DEVICE_BUSY')
 
     # Generate config
     try:
@@ -574,7 +565,7 @@ def start_radiosonde():
     except (OSError, RuntimeError) as e:
         app_module.release_sdr_device(device_int, sdr_type_str)
         logger.error(f"Failed to generate radiosonde config: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
     # Build command - auto_rx -c expects the path to station.cfg
     cfg_abs = os.path.abspath(cfg_path)
@@ -598,13 +589,11 @@ def start_radiosonde():
             dep_error = dep_check.stderr.decode('utf-8', errors='ignore').strip()
             logger.error(f"radiosonde_auto_rx dependency check failed:\n{dep_error}")
             app_module.release_sdr_device(device_int, sdr_type_str)
-            return jsonify({
-                'status': 'error',
-                'message': (
-                    'radiosonde_auto_rx dependencies not satisfied. '
-                    f'Re-run setup.sh to install. Error: {dep_error[:500]}'
-                ),
-            }), 500
+            return api_error(
+                'radiosonde_auto_rx dependencies not satisfied. '
+                f'Re-run setup.sh to install. Error: {dep_error[:500]}',
+                500,
+            )
 
     try:
         logger.info(f"Starting radiosonde_auto_rx: {' '.join(cmd)}")
@@ -646,7 +635,7 @@ def start_radiosonde():
                 )
             if stderr_output:
                 error_msg += f' Error: {stderr_output[:500]}'
-            return jsonify({'status': 'error', 'message': error_msg}), 500
+            return api_error(error_msg, 500)
 
         radiosonde_running = True
         radiosonde_active_device = device_int
@@ -672,7 +661,7 @@ def start_radiosonde():
     except Exception as e:
         app_module.release_sdr_device(device_int, sdr_type_str)
         logger.error(f"Failed to start radiosonde_auto_rx: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return api_error(str(e), 500)
 
 
 @radiosonde_bp.route('/stop', methods=['POST'])
@@ -741,8 +730,7 @@ def stream_radiosonde():
 def get_balloons():
     """Get current balloon data."""
     with _balloons_lock:
-        return jsonify({
-            'status': 'success',
+        return api_success(data={
             'count': len(radiosonde_balloons),
             'balloons': dict(radiosonde_balloons),
         })

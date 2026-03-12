@@ -10,6 +10,7 @@ from typing import Any
 
 from flask import Blueprint, Response, jsonify, request
 
+from utils.responses import api_success, api_error
 from utils.logging import get_logger
 
 logger = get_logger('intercept.signalid')
@@ -294,15 +295,15 @@ def sigidwiki_lookup() -> Response:
 
     freq_raw = payload.get('frequency_mhz')
     if freq_raw is None:
-        return jsonify({'status': 'error', 'message': 'frequency_mhz is required'}), 400
+        return api_error('frequency_mhz is required', 400)
 
     try:
         frequency_mhz = float(freq_raw)
     except (TypeError, ValueError):
-        return jsonify({'status': 'error', 'message': 'Invalid frequency_mhz'}), 400
+        return api_error('Invalid frequency_mhz', 400)
 
     if frequency_mhz <= 0:
-        return jsonify({'status': 'error', 'message': 'frequency_mhz must be positive'}), 400
+        return api_error('frequency_mhz must be positive', 400)
 
     modulation = str(payload.get('modulation') or '').strip().upper()
     if modulation and len(modulation) > 16:
@@ -331,7 +332,7 @@ def sigidwiki_lookup() -> Response:
         lookup = _lookup_sigidwiki_matches(frequency_mhz, modulation, limit)
     except Exception as exc:
         logger.error('SigID lookup failed: %s', exc)
-        return jsonify({'status': 'error', 'message': 'SigID lookup failed'}), 502
+        return api_error('SigID lookup failed', 502)
 
     response_payload = {
         'matches': lookup.get('matches', []),
