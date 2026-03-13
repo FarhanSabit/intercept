@@ -418,7 +418,7 @@ ALERT_WEBHOOK_TIMEOUT = _get_env_int('ALERT_WEBHOOK_TIMEOUT', 5)
 
 # Admin credentials
 ADMIN_USERNAME = _get_env('ADMIN_USERNAME', 'admin')
-ADMIN_PASSWORD = _get_env('ADMIN_PASSWORD', '')
+ADMIN_PASSWORD = _get_env('ADMIN_PASSWORD', 'admin')
 
 
 def configure_logging() -> None:

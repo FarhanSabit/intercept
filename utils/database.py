@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 logger = logging.getLogger('intercept.database')
 
@@ -252,14 +252,15 @@ def init_db() -> None:
             )
         ''')
 
+        from config import ADMIN_PASSWORD, ADMIN_USERNAME
+
         cursor = conn.execute('SELECT COUNT(*) FROM users')
         if cursor.fetchone()[0] == 0:
-            import secrets as _secrets
-
-            from config import ADMIN_PASSWORD, ADMIN_USERNAME
-
+            # First run — seed the admin user from config / env vars.
             admin_password = ADMIN_PASSWORD
             if not admin_password:
+                import secrets as _secrets
+
                 admin_password = _secrets.token_urlsafe(16)
                 logger.warning(f"Generated admin password: {admin_password}")
                 logger.warning("Set INTERCEPT_ADMIN_PASSWORD env var to use a fixed password.")
@@ -277,6 +278,27 @@ def init_db() -> None:
                 INSERT INTO users (username, password_hash, role)
                 VALUES (?, ?, ?)
             ''', (ADMIN_USERNAME, hashed_pw, 'admin'))
+        elif ADMIN_PASSWORD:
+            # Sync admin credentials from config on every startup so that
+            # changes to config.py / env vars take effect without wiping the DB.
+            row = conn.execute(
+                'SELECT password_hash FROM users WHERE username = ? AND role = ?',
+                (ADMIN_USERNAME, 'admin'),
+            ).fetchone()
+            if row:
+                if not check_password_hash(row['password_hash'], ADMIN_PASSWORD):
+                    conn.execute(
+                        'UPDATE users SET password_hash = ? WHERE username = ? AND role = ?',
+                        (generate_password_hash(ADMIN_PASSWORD), ADMIN_USERNAME, 'admin'),
+                    )
+                    logger.info(f"Admin password updated from config for user '{ADMIN_USERNAME}'.")
+            else:
+                # Admin user doesn't exist (maybe renamed) — create it.
+                conn.execute(
+                    'INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+                    (ADMIN_USERNAME, generate_password_hash(ADMIN_PASSWORD), 'admin'),
+                )
+                logger.info(f"Created admin user '{ADMIN_USERNAME}' from config.")
         # =====================================================================
         # TSCM (Technical Surveillance Countermeasures) Tables
         # =====================================================================
