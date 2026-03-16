@@ -1090,6 +1090,14 @@ async function saveObserverLocation() {
         SSTV.loadIssSchedule();
     }
 
+    // Update APRS user location if function is available
+    if (typeof updateAprsUserLocation === 'function') {
+        updateAprsUserLocation({ latitude: lat, longitude: lon });
+    }
+
+    // Notify all listeners (any mode can subscribe)
+    window.dispatchEvent(new CustomEvent('observer-location-changed', { detail: { lat, lon } }));
+
     if (typeof showNotification === 'function') {
         showNotification('Location', notificationMessage);
     }

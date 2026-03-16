@@ -9875,6 +9875,14 @@
                 aprsUserLocation.lon = lon;
             }
         })();
+
+        // Listen for observer location changes from settings or other sources
+        window.addEventListener('observer-location-changed', function(e) {
+            if (e.detail && aprsHasValidCoordinates(e.detail.lat, e.detail.lon)) {
+                updateAprsUserLocation({ latitude: e.detail.lat, longitude: e.detail.lon });
+            }
+        });
+
         let aprsUserMarker = null;
 
         // Calculate distance in miles using Haversine formula
@@ -9991,6 +9999,18 @@
 
             const mapContainer = document.getElementById('aprsMap');
             if (!mapContainer) return;
+
+            // Refresh from ObserverLocation in case it changed since page load
+            if (!aprsHasValidCoordinates(aprsUserLocation.lat, aprsUserLocation.lon) ||
+                (aprsUserLocation.lat === 0 && aprsUserLocation.lon === 0)) {
+                if (typeof ObserverLocation !== 'undefined' && ObserverLocation.getShared) {
+                    const shared = ObserverLocation.getShared();
+                    if (shared && aprsHasValidCoordinates(shared.lat, shared.lon)) {
+                        aprsUserLocation.lat = shared.lat;
+                        aprsUserLocation.lon = shared.lon;
+                    }
+                }
+            }
 
             // Use GPS location if available, otherwise default to center of US
             const gpsLat = Number(gpsLastPosition && gpsLastPosition.latitude);
