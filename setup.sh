@@ -558,13 +558,23 @@ install_python_deps() {
   ok "Core Python packages installed"
 
   info "Installing optional packages..."
-  for pkg in "flask-sock" "simple-websocket>=0.5.1" "websocket-client>=1.6.0" "numpy>=1.24.0" "scipy>=1.10.0" \
-             "Pillow>=9.0.0" "skyfield>=1.45" "bleak>=0.21.0" "psycopg2-binary>=2.9.9" \
-             "meshtastic>=2.0.0" "scapy>=2.4.5" "qrcode[pil]>=7.4" "cryptography>=41.0.0" \
-             "gunicorn>=21.2.0" "gevent>=23.9.0" "psutil>=5.9.0"; do
-    pkg_name="${pkg%%>=*}"
+  # Pure-Python packages: install without --only-binary so they always succeed regardless of platform
+  for pkg in "flask-sock" "simple-websocket>=0.5.1" "websocket-client>=1.6.0" \
+             "skyfield>=1.45" "bleak>=0.21.0" "meshtastic>=2.0.0" \
+             "qrcode[pil]>=7.4" "gunicorn>=21.2.0" "psutil>=5.9.0"; do
+    pkg_name="${pkg%%[><=]*}"
     info "  Installing ${pkg_name}..."
-    # --only-binary :all: skips packages with no pre-built wheel, preventing source compilation hangs
+    if ! $PIP install $PIP_OPTS "$pkg"; then
+      warn "${pkg_name} failed to install (optional - related features may be unavailable)"
+    fi
+  done
+  # Compiled packages: use --only-binary :all: to skip slow source compilation on RPi
+  for pkg in "numpy>=1.24.0" "scipy>=1.10.0" "Pillow>=9.0.0" \
+             "psycopg2-binary>=2.9.9" "scapy>=2.4.5" "cryptography>=41.0.0" \
+             "gevent>=23.9.0"; do
+    pkg_name="${pkg%%[><=]*}"
+    info "  Installing ${pkg_name}..."
+    # --only-binary :all: prevents source compilation hangs for heavy packages
     if ! $PIP install $PIP_OPTS --only-binary :all: "$pkg"; then
       warn "${pkg_name} failed to install (optional - related features may be unavailable)"
     fi
