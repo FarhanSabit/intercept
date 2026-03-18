@@ -331,7 +331,7 @@ const CommandPalette = (function() {
 
     function goToMode(mode) {
         if (mode === 'satellite') {
-            window.location.href = '/satellite/dashboard';
+            window.open('/satellite/dashboard', '_blank', 'noopener');
             return;
         }
 
