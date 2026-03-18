@@ -558,7 +558,7 @@ install_python_deps() {
   ok "Core Python packages installed"
 
   info "Installing optional packages..."
-  for pkg in "flask-sock" "websocket-client>=1.6.0" "numpy>=1.24.0" "scipy>=1.10.0" \
+  for pkg in "flask-sock" "simple-websocket>=0.5.1" "websocket-client>=1.6.0" "numpy>=1.24.0" "scipy>=1.10.0" \
              "Pillow>=9.0.0" "skyfield>=1.45" "bleak>=0.21.0" "psycopg2-binary>=2.9.9" \
              "meshtastic>=2.0.0" "scapy>=2.4.5" "qrcode[pil]>=7.4" "cryptography>=41.0.0" \
              "gunicorn>=21.2.0" "gevent>=23.9.0" "psutil>=5.9.0"; do
