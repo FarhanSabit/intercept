@@ -100,8 +100,8 @@
                 <label>TARGET:</label>
                 <select id="satSelect" onchange="onSatelliteChange()">
                     <option value="25544">ISS (ZARYA)</option>
-                    <option value="40069">METEOR-M2</option>
                     <option value="57166">METEOR-M2-3</option>
+                    <option value="59051">METEOR-M2-4</option>
                 </select>
                 <button id="satRefreshBtn" onclick="loadDashboardSatellites()" title="Refresh satellite list">↺</button>
             </div>
@@ -602,8 +602,8 @@
 
         let satellites = {
             25544: { name: 'ISS (ZARYA)', color: '#00ffff' },
-            40069: { name: 'METEOR-M2', color: '#9370DB' },
-            57166: { name: 'METEOR-M2-3', color: '#ff00ff' }
+            57166: { name: 'METEOR-M2-3', color: '#ff00ff' },
+            59051: { name: 'METEOR-M2-4', color: '#00ff88' }
         };
 
         const satColors = ['#00ffff', '#9370DB', '#ff00ff', '#00ff00', '#ff6600', '#ffff00', '#ff69b4', '#7b68ee'];
@@ -1063,8 +1063,7 @@
 
         // Satellites that can be handed off to the weather-satellite capture mode
         const WEATHER_SAT_KEYS = new Set([
-            'NOAA-15', 'NOAA-18', 'NOAA-19', 'NOAA-20', 'NOAA-21',
-            'METEOR-M2', 'METEOR-M2-3', 'METEOR-M2-4'
+            'METEOR-M2-3', 'METEOR-M2-4'
         ]);
 
         function renderPassList() {

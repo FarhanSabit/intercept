@@ -635,6 +635,14 @@ def init_db() -> None:
             INSERT OR IGNORE INTO tracked_satellites (norad_id, name, tle_line1, tle_line2, enabled, builtin)
             VALUES ('40069', 'METEOR-M2', NULL, NULL, 1, 1)
         ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO tracked_satellites (norad_id, name, tle_line1, tle_line2, enabled, builtin)
+            VALUES ('57166', 'METEOR-M2-3', NULL, NULL, 1, 1)
+        ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO tracked_satellites (norad_id, name, tle_line1, tle_line2, enabled, builtin)
+            VALUES ('59051', 'METEOR-M2-4', NULL, NULL, 1, 1)
+        ''')
 
         # =====================================================================
         # Ground Station Tables (automated observations, IQ recordings)

@@ -330,10 +330,11 @@ def predict_passes():
     norad_to_name = {
         25544: 'ISS',
         40069: 'METEOR-M2',
-        57166: 'METEOR-M2-3'
+        57166: 'METEOR-M2-3',
+        59051: 'METEOR-M2-4',
     }
 
-    sat_input = data.get('satellites', ['ISS', 'METEOR-M2', 'METEOR-M2-3'])
+    sat_input = data.get('satellites', ['ISS', 'METEOR-M2-3', 'METEOR-M2-4'])
     satellites = []
     for sat in sat_input:
         if isinstance(sat, int) and sat in norad_to_name:
@@ -345,7 +346,8 @@ def predict_passes():
     colors = {
         'ISS': '#00ffff',
         'METEOR-M2': '#9370DB',
-        'METEOR-M2-3': '#ff00ff'
+        'METEOR-M2-3': '#ff00ff',
+        'METEOR-M2-4': '#00ff88',
     }
     name_to_norad = {v: k for k, v in norad_to_name.items()}
 
@@ -413,7 +415,8 @@ def get_satellite_position():
     norad_to_name = {
         25544: 'ISS',
         40069: 'METEOR-M2',
-        57166: 'METEOR-M2-3'
+        57166: 'METEOR-M2-3',
+        59051: 'METEOR-M2-4',
     }
 
     satellites = []
