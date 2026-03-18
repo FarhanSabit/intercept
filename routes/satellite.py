@@ -509,7 +509,7 @@ def get_satellite_position():
 
     for sat in sat_input:
         sat_name, norad_id, tle_data = _resolve_satellite_request(sat, tracked_by_norad, tracked_by_name)
-        # Special handling for ISS - use real-time API for accurate position
+        # Special handling for ISS - prefer real-time API, but fall back to TLE if offline.
         if norad_id == 25544 or sat_name == 'ISS':
             iss_data = _fetch_iss_realtime(lat, lon)
             if iss_data:
@@ -535,7 +535,7 @@ def get_satellite_position():
                     except Exception:
                         pass
                 positions.append(iss_data)
-            continue
+                continue
 
         # Other satellites - use TLE data
         if not tle_data:

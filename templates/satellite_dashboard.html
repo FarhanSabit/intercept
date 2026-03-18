@@ -602,6 +602,18 @@
         let _txRequestId = 0;
         let _telemetryPollTimer = null;
         let _passRequestId = 0;
+        const BUILTIN_TX_FALLBACK = {
+            25544: [
+                { description: 'APRS digipeater', downlink_low: 145.825, downlink_high: 145.825, uplink_low: null, uplink_high: null, mode: 'FM AX.25', baud: 1200, status: 'active', type: 'beacon', service: 'Packet' },
+                { description: 'SSTV events', downlink_low: 145.800, downlink_high: 145.800, uplink_low: null, uplink_high: null, mode: 'FM', baud: null, status: 'active', type: 'image', service: 'SSTV' }
+            ],
+            57166: [
+                { description: 'Meteor LRPT weather downlink', downlink_low: 137.900, downlink_high: 137.900, uplink_low: null, uplink_high: null, mode: 'LRPT', baud: 72000, status: 'active', type: 'image', service: 'Weather' }
+            ],
+            59051: [
+                { description: 'Meteor LRPT weather downlink', downlink_low: 137.900, downlink_high: 137.900, uplink_low: null, uplink_high: null, mode: 'LRPT', baud: 72000, status: 'active', type: 'image', service: 'Weather' }
+            ]
+        };
 
         let satellites = {
             25544: { name: 'ISS (ZARYA)', color: '#00ffff' },
@@ -1637,9 +1649,17 @@
                 const data = await r.json();
                 if (requestId !== _txRequestId) return;
                 if (data.status !== 'success') throw new Error('Unexpected response');
-                renderTransmitters(data.transmitters || []);
+                const txList = (data.transmitters && data.transmitters.length)
+                    ? data.transmitters
+                    : (BUILTIN_TX_FALLBACK[noradId] || []);
+                renderTransmitters(txList);
             } catch (e) {
                 if (requestId !== _txRequestId) return;
+                const fallback = BUILTIN_TX_FALLBACK[noradId] || [];
+                if (fallback.length) {
+                    renderTransmitters(fallback);
+                    return;
+                }
                 const timedOut = e && (e.name === 'AbortError' || String(e).includes('AbortError'));
                 container.innerHTML = `<div style="text-align:center;color:var(--text-secondary);padding:15px;font-size:11px;">${timedOut ? 'Timed out loading transmitter data' : 'Failed to load transmitter data'}</div>`;
                 if (countEl) countEl.textContent = '';
