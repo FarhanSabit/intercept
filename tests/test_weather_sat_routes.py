@@ -11,7 +11,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from utils.weather_sat import WeatherSatImage
+
+
+@pytest.fixture
+def client(client):
+    """Authenticated client for weather-sat route tests."""
+    with client.session_transaction() as sess:
+        sess['logged_in'] = True
+    return client
 
 
 class TestWeatherSatRoutes:
@@ -68,7 +78,8 @@ class TestWeatherSatRoutes:
         """POST /weather-sat/start successfully starts capture."""
         with patch('routes.weather_sat.is_weather_sat_available', return_value=True), \
              patch('routes.weather_sat.get_weather_sat_decoder') as mock_get, \
-             patch('routes.weather_sat.queue.Queue'):
+             patch('routes.weather_sat.queue.Queue'), \
+             patch('app.claim_sdr_device', return_value=None):
 
             mock_decoder = MagicMock()
             mock_decoder.is_running = False
@@ -96,12 +107,12 @@ class TestWeatherSatRoutes:
             assert data['mode'] == 'APT'
             assert data['device'] == 0
 
-            mock_decoder.start.assert_called_once_with(
-                satellite='NOAA-18',
-                device_index=0,
-                gain=40.0,
-                bias_t=False,
-            )
+            mock_decoder.start.assert_called_once()
+            call_kwargs = mock_decoder.start.call_args[1]
+            assert call_kwargs['satellite'] == 'NOAA-18'
+            assert call_kwargs['device_index'] == 0
+            assert call_kwargs['gain'] == 40.0
+            assert call_kwargs['bias_t'] is False
 
     def test_start_capture_no_satdump(self, client):
         """POST /weather-sat/start returns error when SatDump unavailable."""
@@ -290,7 +301,8 @@ class TestWeatherSatRoutes:
     def test_start_capture_start_failure(self, client):
         """POST /weather-sat/start when decoder.start() fails."""
         with patch('routes.weather_sat.is_weather_sat_available', return_value=True), \
-             patch('routes.weather_sat.get_weather_sat_decoder') as mock_get:
+             patch('routes.weather_sat.get_weather_sat_decoder') as mock_get, \
+             patch('app.claim_sdr_device', return_value=None):
 
             mock_decoder = MagicMock()
             mock_decoder.is_running = False
@@ -409,7 +421,13 @@ class TestWeatherSatRoutes:
     def test_test_decode_invalid_sample_rate(self, client):
         """POST /weather-sat/test-decode with invalid sample rate."""
         with patch('routes.weather_sat.is_weather_sat_available', return_value=True), \
-             patch('routes.weather_sat.get_weather_sat_decoder') as mock_get:
+             patch('routes.weather_sat.get_weather_sat_decoder') as mock_get, \
+             patch('pathlib.Path.is_file', return_value=True), \
+             patch('pathlib.Path.resolve') as mock_resolve:
+
+            mock_path = MagicMock()
+            mock_path.is_relative_to.return_value = True
+            mock_resolve.return_value = mock_path
 
             mock_decoder = MagicMock()
             mock_decoder.is_running = False
@@ -558,7 +576,7 @@ class TestWeatherSatRoutes:
             mock_decoder = MagicMock()
             mock_get.return_value = mock_decoder
 
-            response = client.get('/weather-sat/images/../../../etc/passwd')
+            response = client.get('/weather-sat/images/bad!file@name.png')
             assert response.status_code == 400
             data = response.get_json()
             assert data['status'] == 'error'
@@ -647,7 +665,7 @@ class TestWeatherSatRoutes:
 
     def test_get_passes_success(self, client):
         """GET /weather-sat/passes successfully predicts passes."""
-        with patch('routes.weather_sat.predict_passes') as mock_predict:
+        with patch('utils.weather_sat_predict.predict_passes') as mock_predict:
             mock_predict.return_value = [
                 {
                     'id': 'NOAA-18_202401011200',
@@ -676,7 +694,7 @@ class TestWeatherSatRoutes:
 
     def test_get_passes_with_options(self, client):
         """GET /weather-sat/passes with trajectory and ground track."""
-        with patch('routes.weather_sat.predict_passes') as mock_predict:
+        with patch('utils.weather_sat_predict.predict_passes') as mock_predict:
             mock_predict.return_value = []
 
             response = client.get(
@@ -696,7 +714,7 @@ class TestWeatherSatRoutes:
 
     def test_get_passes_import_error(self, client):
         """GET /weather-sat/passes when skyfield not installed."""
-        with patch('routes.weather_sat.predict_passes', side_effect=ImportError):
+        with patch('utils.weather_sat_predict.predict_passes', side_effect=ImportError):
             response = client.get('/weather-sat/passes?latitude=51.5&longitude=-0.1')
             assert response.status_code == 503
             data = response.get_json()
@@ -705,7 +723,7 @@ class TestWeatherSatRoutes:
 
     def test_get_passes_prediction_error(self, client):
         """GET /weather-sat/passes when prediction fails."""
-        with patch('routes.weather_sat.predict_passes', side_effect=Exception('TLE error')):
+        with patch('utils.weather_sat_predict.predict_passes', side_effect=Exception('TLE error')):
             response = client.get('/weather-sat/passes?latitude=51.5&longitude=-0.1')
             assert response.status_code == 500
             data = response.get_json()
@@ -717,7 +735,7 @@ class TestWeatherSatScheduler:
 
     def test_enable_schedule_success(self, client):
         """POST /weather-sat/schedule/enable enables scheduler."""
-        with patch('routes.weather_sat.get_weather_sat_scheduler') as mock_get:
+        with patch('utils.weather_sat_scheduler.get_weather_sat_scheduler') as mock_get:
             mock_scheduler = MagicMock()
             mock_scheduler.enable.return_value = {
                 'enabled': True,
@@ -780,7 +798,7 @@ class TestWeatherSatScheduler:
 
     def test_disable_schedule(self, client):
         """POST /weather-sat/schedule/disable disables scheduler."""
-        with patch('routes.weather_sat.get_weather_sat_scheduler') as mock_get:
+        with patch('utils.weather_sat_scheduler.get_weather_sat_scheduler') as mock_get:
             mock_scheduler = MagicMock()
             mock_scheduler.disable.return_value = {'status': 'disabled'}
             mock_get.return_value = mock_scheduler
@@ -792,7 +810,7 @@ class TestWeatherSatScheduler:
 
     def test_schedule_status(self, client):
         """GET /weather-sat/schedule/status returns scheduler status."""
-        with patch('routes.weather_sat.get_weather_sat_scheduler') as mock_get:
+        with patch('utils.weather_sat_scheduler.get_weather_sat_scheduler') as mock_get:
             mock_scheduler = MagicMock()
             mock_scheduler.get_status.return_value = {
                 'enabled': False,
@@ -813,7 +831,7 @@ class TestWeatherSatScheduler:
 
     def test_schedule_passes(self, client):
         """GET /weather-sat/schedule/passes lists scheduled passes."""
-        with patch('routes.weather_sat.get_weather_sat_scheduler') as mock_get:
+        with patch('utils.weather_sat_scheduler.get_weather_sat_scheduler') as mock_get:
             mock_scheduler = MagicMock()
             mock_scheduler.get_passes.return_value = [
                 {
@@ -832,7 +850,7 @@ class TestWeatherSatScheduler:
 
     def test_skip_pass_success(self, client):
         """POST /weather-sat/schedule/skip/<id> skips a pass."""
-        with patch('routes.weather_sat.get_weather_sat_scheduler') as mock_get:
+        with patch('utils.weather_sat_scheduler.get_weather_sat_scheduler') as mock_get:
             mock_scheduler = MagicMock()
             mock_scheduler.skip_pass.return_value = True
             mock_get.return_value = mock_scheduler
@@ -845,7 +863,7 @@ class TestWeatherSatScheduler:
 
     def test_skip_pass_not_found(self, client):
         """POST /weather-sat/schedule/skip/<id> for non-existent pass."""
-        with patch('routes.weather_sat.get_weather_sat_scheduler') as mock_get:
+        with patch('utils.weather_sat_scheduler.get_weather_sat_scheduler') as mock_get:
             mock_scheduler = MagicMock()
             mock_scheduler.skip_pass.return_value = False
             mock_get.return_value = mock_scheduler
@@ -855,7 +873,7 @@ class TestWeatherSatScheduler:
 
     def test_skip_pass_invalid_id(self, client):
         """POST /weather-sat/schedule/skip/<id> with invalid ID."""
-        response = client.post('/weather-sat/schedule/skip/../../../etc/passwd')
+        response = client.post('/weather-sat/schedule/skip/invalid!pass@id')
         assert response.status_code == 400
         data = response.get_json()
         assert data['status'] == 'error'

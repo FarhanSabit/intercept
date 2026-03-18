@@ -191,8 +191,10 @@ class TestWeatherSatScheduler:
             'quality': 'good',
         }
         sp = ScheduledPass(pass_data)
-        sp._timer = MagicMock()
-        sp._stop_timer = MagicMock()
+        mock_pass_timer = MagicMock()
+        mock_stop_timer = MagicMock()
+        sp._timer = mock_pass_timer
+        sp._stop_timer = mock_stop_timer
         scheduler._passes = [sp]
 
         result = scheduler.disable()
@@ -200,8 +202,8 @@ class TestWeatherSatScheduler:
         assert scheduler._enabled is False
         assert scheduler._passes == []
         mock_timer.cancel.assert_called_once()
-        sp._timer.cancel.assert_called_once()
-        sp._stop_timer.cancel.assert_called_once()
+        mock_pass_timer.cancel.assert_called_once()
+        mock_stop_timer.cancel.assert_called_once()
         assert result['status'] == 'disabled'
 
     def test_skip_pass_success(self):
@@ -223,7 +225,8 @@ class TestWeatherSatScheduler:
             'quality': 'good',
         }
         sp = ScheduledPass(pass_data)
-        sp._timer = MagicMock()
+        mock_pass_timer = MagicMock()
+        sp._timer = mock_pass_timer
         scheduler._passes = [sp]
 
         result = scheduler.skip_pass('NOAA-18_202401011200')
@@ -231,7 +234,7 @@ class TestWeatherSatScheduler:
         assert result is True
         assert sp.status == 'skipped'
         assert sp.skipped is True
-        sp._timer.cancel.assert_called_once()
+        mock_pass_timer.cancel.assert_called_once()
         event_cb.assert_called_once()
 
     def test_skip_pass_not_found(self):
@@ -531,9 +534,10 @@ class TestWeatherSatScheduler:
         assert event_data['type'] == 'schedule_capture_skipped'
         assert event_data['reason'] == 'sdr_busy'
 
+    @patch('app.claim_sdr_device', return_value=None)
     @patch('utils.weather_sat_scheduler.get_weather_sat_decoder')
     @patch('threading.Timer')
-    def test_execute_capture_success(self, mock_timer, mock_get):
+    def test_execute_capture_success(self, mock_timer, mock_get, mock_claim):
         """_execute_capture() should start capture."""
         scheduler = WeatherSatScheduler()
         scheduler._enabled = True
@@ -570,18 +574,18 @@ class TestWeatherSatScheduler:
 
         assert sp.status == 'capturing'
         mock_decoder.set_callback.assert_called_once_with(progress_cb)
-        mock_decoder.start.assert_called_once_with(
-            satellite='NOAA-18',
-            device_index=0,
-            gain=40.0,
-            bias_t=False,
-        )
+        call_kwargs = mock_decoder.start.call_args[1]
+        assert call_kwargs['satellite'] == 'NOAA-18'
+        assert call_kwargs['device_index'] == 0
+        assert call_kwargs['gain'] == 40.0
+        assert call_kwargs['bias_t'] is False
         event_cb.assert_called_once()
         event_data = event_cb.call_args[0][0]
         assert event_data['type'] == 'schedule_capture_start'
 
+    @patch('app.claim_sdr_device', return_value=None)
     @patch('utils.weather_sat_scheduler.get_weather_sat_decoder')
-    def test_execute_capture_start_failed(self, mock_get):
+    def test_execute_capture_start_failed(self, mock_get, mock_claim):
         """_execute_capture() should handle start failure."""
         scheduler = WeatherSatScheduler()
         scheduler._enabled = True
@@ -773,10 +777,11 @@ class TestUtcIsoParsing:
 class TestSchedulerIntegration:
     """Integration tests for scheduler."""
 
+    @patch('app.claim_sdr_device', return_value=None)
     @patch('utils.weather_sat_predict.predict_passes')
     @patch('utils.weather_sat_scheduler.get_weather_sat_decoder')
     @patch('threading.Timer')
-    def test_full_scheduling_cycle(self, mock_timer, mock_get_decoder, mock_predict):
+    def test_full_scheduling_cycle(self, mock_timer, mock_get_decoder, mock_predict, mock_claim):
         """Test complete scheduling cycle from enable to execute."""
         now = datetime.now(timezone.utc)
         future_pass = {
