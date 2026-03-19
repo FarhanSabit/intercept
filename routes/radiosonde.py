@@ -46,6 +46,7 @@ from utils.validation import (
 logger = get_logger('intercept.radiosonde')
 
 radiosonde_bp = Blueprint('radiosonde', __name__, url_prefix='/radiosonde')
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Track radiosonde state
 radiosonde_running = False
@@ -112,6 +113,17 @@ def _resolve_pip_python(pip_bin: str | None) -> str | None:
     return _resolve_shebang_interpreter(pip_bin)
 
 
+def _build_auto_rx_env(auto_rx_dir: str) -> dict[str, str]:
+    """Build environment for radiosonde_auto_rx with compatibility shims."""
+    env = os.environ.copy()
+    python_path_entries = [PROJECT_ROOT, auto_rx_dir]
+    existing_pythonpath = env.get('PYTHONPATH', '')
+    if existing_pythonpath:
+        python_path_entries.append(existing_pythonpath)
+    env['PYTHONPATH'] = os.pathsep.join(entry for entry in python_path_entries if entry)
+    return env
+
+
 def _iter_auto_rx_python_candidates(auto_rx_path: str):
     """Yield plausible Python interpreters for radiosonde_auto_rx."""
     auto_rx_abs = os.path.abspath(auto_rx_path)
@@ -158,6 +170,7 @@ def _iter_auto_rx_python_candidates(auto_rx_path: str):
 def _resolve_auto_rx_python(auto_rx_path: str) -> tuple[str | None, str, list[str]]:
     """Pick a Python interpreter that can import autorx.scan successfully."""
     auto_rx_dir = os.path.dirname(os.path.abspath(auto_rx_path))
+    auto_rx_env = _build_auto_rx_env(auto_rx_dir)
     checked: list[str] = []
     last_error = 'No usable Python interpreter found'
 
@@ -167,6 +180,7 @@ def _resolve_auto_rx_python(auto_rx_path: str) -> tuple[str | None, str, list[st
             dep_check = subprocess.run(
                 [python_bin, '-c', 'import autorx.scan'],
                 cwd=auto_rx_dir,
+                env=auto_rx_env,
                 capture_output=True,
                 timeout=10,
             )
@@ -670,6 +684,7 @@ def start_radiosonde():
 
     # Set cwd to the auto_rx directory so 'from autorx.scan import ...' works
     auto_rx_dir = os.path.dirname(os.path.abspath(auto_rx_path))
+    auto_rx_env = _build_auto_rx_env(auto_rx_dir)
 
     try:
         logger.info(f"Starting radiosonde_auto_rx: {' '.join(cmd)}")
@@ -679,6 +694,7 @@ def start_radiosonde():
             stderr=subprocess.PIPE,
             start_new_session=True,
             cwd=auto_rx_dir,
+            env=auto_rx_env,
         )
 
         # Wait briefly for process to start
