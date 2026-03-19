@@ -52,6 +52,11 @@ _tle_cache = dict(TLE_SATELLITES)
 # TTL is 1800 seconds (30 minutes)
 _track_cache: dict = {}
 _TRACK_CACHE_TTL = 1800
+
+# Thread pool for background ground-track computation (non-blocking from 1Hz tracker loop)
+from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
+_track_executor = _ThreadPoolExecutor(max_workers=2, thread_name_prefix='sat-track')
+_track_in_progress: set = set()  # cache keys currently being computed
 _pass_cache: dict = {}
 _PASS_CACHE_TTL = 300
 
@@ -253,27 +258,43 @@ def _start_satellite_tracker():
                         'altitude': float(subpoint.elevation.km),
                     }
 
-                    # Ground track with caching (90 points, TTL 1800s)
+                    # Ground track with caching (90 points, TTL 1800s).
+                    # If the cache is stale, kick off background computation so the
+                    # 1Hz tracker loop is not blocked. The client retains the previous
+                    # track via SSE merge until the new one arrives next tick.
                     cache_key_track = (sat_name, tle1[:20])
                     cached = _track_cache.get(cache_key_track)
                     if cached and (time.time() - cached[1]) < _TRACK_CACHE_TTL:
                         pos['groundTrack'] = cached[0]
-                    else:
-                        track = []
-                        for minutes_offset in range(-45, 46, 1):
-                            t_point = ts.utc(now_dt + timedelta(minutes=minutes_offset))
+                    elif cache_key_track not in _track_in_progress:
+                        _track_in_progress.add(cache_key_track)
+                        _sat_ref = satellite
+                        _ts_ref = ts
+                        _now_dt_ref = now_dt
+
+                        def _compute_track(_sat=_sat_ref, _ts=_ts_ref, _now_dt=_now_dt_ref, _key=cache_key_track):
                             try:
-                                geo = satellite.at(t_point)
-                                sp = wgs84.subpoint(geo)
-                                track.append({
-                                    'lat': float(sp.latitude.degrees),
-                                    'lon': float(sp.longitude.degrees),
-                                    'past': minutes_offset < 0,
-                                })
+                                track = []
+                                for minutes_offset in range(-45, 46, 1):
+                                    t_point = _ts.utc(_now_dt + timedelta(minutes=minutes_offset))
+                                    try:
+                                        geo = _sat.at(t_point)
+                                        sp = wgs84.subpoint(geo)
+                                        track.append({
+                                            'lat': float(sp.latitude.degrees),
+                                            'lon': float(sp.longitude.degrees),
+                                            'past': minutes_offset < 0,
+                                        })
+                                    except Exception:
+                                        continue
+                                _track_cache[_key] = (track, time.time())
                             except Exception:
-                                continue
-                        _track_cache[cache_key_track] = (track, time.time())
-                        pos['groundTrack'] = track
+                                pass
+                            finally:
+                                _track_in_progress.discard(_key)
+
+                        _track_executor.submit(_compute_track)
+                        # groundTrack omitted this tick; frontend retains prior value
 
                     positions.append(pos)
                 except Exception:
