@@ -788,6 +788,7 @@
         let _dashboardRetryTimer = null;
         let _dashboardRetryAttempts = 0;
         let _satelliteSelectionRequestToken = 0;
+        let _lastSatelliteCatalogRefresh = 0;
         const passCache = new Map();
         const telemetryCache = new Map();
         const transmitterCache = new Map();
@@ -1080,7 +1081,7 @@
             updateMissionDrawerInfo();
         }
 
-        function loadDashboardSatellites() {
+        function loadDashboardSatellites(forceDataRefresh = true) {
             const btn = document.getElementById('satRefreshBtn');
             if (btn) {
                 btn.classList.remove('spinning');
@@ -1123,12 +1124,16 @@
                     }
                     selectedSatellite = parseInt(select.value);
                     _satelliteSelectionRequestToken += 1;
+                    _lastSatelliteCatalogRefresh = Date.now();
                     clearTelemetry();
                     restoreSatelliteStateFromCache(selectedSatellite);
                     updateMissionDrawerInfo();
-                    loadTransmitters(selectedSatellite, _satelliteSelectionRequestToken);
-                    calculatePasses(selectedSatellite, _satelliteSelectionRequestToken);
-                    fetchCurrentTelemetry(selectedSatellite, _satelliteSelectionRequestToken);
+                    const hasCachedPasses = !!getCachedPasses(selectedSatellite)?.passes?.length;
+                    const hasCachedTelemetry = !!getCachedLivePosition(selectedSatellite)?.position;
+                    const hasCachedTransmitters = !!getCachedTransmitters(selectedSatellite)?.transmitters?.length;
+                    if (forceDataRefresh || !hasCachedTransmitters) loadTransmitters(selectedSatellite, _satelliteSelectionRequestToken);
+                    if (forceDataRefresh || !hasCachedPasses) calculatePasses(selectedSatellite, _satelliteSelectionRequestToken);
+                    if (forceDataRefresh || !hasCachedTelemetry) fetchCurrentTelemetry(selectedSatellite, _satelliteSelectionRequestToken);
                     if (window.gsLoadOutputs) window.gsLoadOutputs();
                     if (window.gsOnSatelliteChange) window.gsOnSatelliteChange();
                     if (!trackedSatelliteCatalog.length) {
@@ -1153,9 +1158,12 @@
                         }));
                         renderTrackedSatelliteCatalog();
                     }
-                    calculatePasses(selectedSatellite, _satelliteSelectionRequestToken);
-                    fetchCurrentTelemetry(selectedSatellite, _satelliteSelectionRequestToken);
-                    loadTransmitters(selectedSatellite, _satelliteSelectionRequestToken);
+                    const hasCachedPasses = !!getCachedPasses(selectedSatellite)?.passes?.length;
+                    const hasCachedTelemetry = !!getCachedLivePosition(selectedSatellite)?.position;
+                    const hasCachedTransmitters = !!getCachedTransmitters(selectedSatellite)?.transmitters?.length;
+                    if (!hasCachedPasses) calculatePasses(selectedSatellite, _satelliteSelectionRequestToken);
+                    if (!hasCachedTelemetry) fetchCurrentTelemetry(selectedSatellite, _satelliteSelectionRequestToken);
+                    if (!hasCachedTransmitters) loadTransmitters(selectedSatellite, _satelliteSelectionRequestToken);
                     scheduleDashboardDataRetry(2500);
                 })
                 .finally(() => {
@@ -1619,8 +1627,14 @@
             }
         });
 
-        // Refresh satellite list when the window regains focus (e.g. after enabling sats in the sidebar)
-        window.addEventListener('focus', loadDashboardSatellites);
+        function refreshSatelliteCatalogOnFocus() {
+            if ((Date.now() - _lastSatelliteCatalogRefresh) < 60000) return;
+            loadDashboardSatellites(false);
+        }
+
+        // Refresh the catalog on focus only occasionally, and do not clobber
+        // working pass/telemetry panes when we already have cached state.
+        window.addEventListener('focus', refreshSatelliteCatalogOnFocus);
         window.addEventListener('pagehide', () => {
             if (_telemetryAbortController) {
                 _telemetryAbortController.abort();
@@ -1913,7 +1927,8 @@
 
             const requestId = ++_passRequestId;
 
-            if (container) {
+            const shouldReplacePassPane = !passes.length;
+            if (container && shouldReplacePassPane) {
                 container.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:20px;">Calculating passes...</div>';
             }
             if (button) {
