@@ -294,9 +294,10 @@ body {
 
 .command-rail {
     display: grid;
-    grid-template-rows: auto auto auto minmax(220px, 1fr);
+    grid-template-rows: auto auto auto minmax(260px, 340px);
     gap: 12px;
     min-width: 0;
+    align-items: start;
 }
 
 .data-grid {
@@ -737,13 +738,26 @@ body {
 
 /* Polar plot */
 .polar-container {
-    min-height: 250px;
+    min-height: 0;
+    max-height: 340px;
+    align-self: start;
+}
+
+.polar-container .panel-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    overflow: hidden;
 }
 
 #polarPlot {
+    display: block;
     width: 100%;
     height: 100%;
-    min-height: 220px;
+    max-width: 320px;
+    max-height: 320px;
+    min-height: 0;
 }
 
 /* Ground track map */
@@ -1543,7 +1557,7 @@ body {
         grid-column: 2;
         grid-row: 2;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-template-rows: auto auto;
+        grid-template-rows: auto minmax(260px, 320px);
     }
 }
 
@@ -1573,6 +1587,10 @@ body {
     .command-rail {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         grid-template-rows: auto auto;
+    }
+
+    .polar-container {
+        max-height: 320px;
     }
 
     .satellite-selector {
