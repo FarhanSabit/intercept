@@ -1,3 +1,5 @@
+import queue
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -69,6 +71,55 @@ def test_get_satellite_position_skyfield_error(mock_load, client):
     # Should return success but an empty positions list due to internal try-except
     assert response.status_code == 200
     assert response.json['positions'] == []
+
+def test_tracker_position_has_no_observer_fields():
+    """SSE tracker positions must NOT include observer-relative fields.
+
+    The tracker runs server-side with a fixed (potentially wrong) observer
+    location. Only the per-request /satellite/position endpoint, which
+    receives the client's actual location, should emit elevation/azimuth/
+    distance/visible.
+    """
+    import sys
+    from routes.satellite import _start_satellite_tracker
+
+    ISS_TLE = (
+        'ISS (ZARYA)',
+        '1 25544U 98067A   24001.00000000  .00016717  00000-0  30171-3 0  9993',
+        '2 25544  51.6416  20.4567 0004561  45.3212  67.8912 15.49876543123457',
+    )
+
+    sat_q = queue.Queue(maxsize=5)
+    mock_app = MagicMock()
+    mock_app.satellite_queue = sat_q
+
+    from skyfield.api import load as _real_load
+    real_ts = _real_load.timescale(builtin=True)
+
+    # Pre-populate track cache so the tracker loop doesn't block computing 90 points
+    tle_key = (ISS_TLE[0], ISS_TLE[1][:20])
+    stub_track = [{'lat': 0.0, 'lon': float(i), 'past': i < 45} for i in range(91)]
+    with patch('routes.satellite._tle_cache', {'ISS': ISS_TLE}), \
+         patch('routes.satellite.get_tracked_satellites') as mock_tracked, \
+         patch('routes.satellite._track_cache', {tle_key: (stub_track, 1e18)}), \
+         patch('routes.satellite._get_timescale', return_value=real_ts), \
+         patch.dict('sys.modules', {'app': mock_app}):
+        mock_tracked.return_value = [{
+            'name': 'ISS (ZARYA)', 'norad_id': 25544,
+            'tle_line1': ISS_TLE[1], 'tle_line2': ISS_TLE[2],
+        }]
+
+        t = threading.Thread(target=_start_satellite_tracker, daemon=True)
+        t.start()
+        msg = sat_q.get(timeout=10)
+
+    assert msg['type'] == 'positions'
+    pos = msg['positions'][0]
+    for forbidden in ('elevation', 'azimuth', 'distance', 'visible'):
+        assert forbidden not in pos, f"SSE tracker must not emit '{forbidden}'"
+    for required in ('lat', 'lon', 'altitude', 'satellite', 'norad_id'):
+        assert required in pos, f"SSE tracker must emit '{required}'"
+
 
 # Logic Integration Test (Simulating prediction)
 def test_predict_passes_empty_cache(client):

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import requests
 from flask import Blueprint, Response, jsonify, make_response, render_template, request
 
-from config import DEFAULT_LATITUDE, DEFAULT_LONGITUDE, SHARED_OBSERVER_LOCATION_ENABLED
+from config import SHARED_OBSERVER_LOCATION_ENABLED
 from utils.sse import sse_stream_fanout
 from data.satellites import TLE_SATELLITES
 from utils.database import (
@@ -218,11 +218,6 @@ def _start_satellite_tracker():
             now = ts.now()
             now_dt = now.utc_datetime()
 
-            obs_lat = DEFAULT_LATITUDE
-            obs_lon = DEFAULT_LONGITUDE
-            has_observer = (obs_lat != 0.0 or obs_lon != 0.0)
-            observer = wgs84.latlon(obs_lat, obs_lon) if has_observer else None
-
             tracked = get_tracked_satellites(enabled_only=True)
             positions = []
 
@@ -245,23 +240,17 @@ def _start_satellite_tracker():
                     geocentric = satellite.at(now)
                     subpoint = wgs84.subpoint(geocentric)
 
+                    # SSE stream is server-wide and cannot know per-client observer
+                    # location. Observer-relative fields (elevation, azimuth, distance,
+                    # visible) are intentionally omitted here — the per-client HTTP poll
+                    # at /satellite/position owns those using the client's actual location.
                     pos = {
                         'satellite': sat_name,
                         'norad_id': norad_id,
                         'lat': float(subpoint.latitude.degrees),
                         'lon': float(subpoint.longitude.degrees),
-                        'altitude': float(geocentric.distance().km - 6371),
-                        'visible': False,
+                        'altitude': float(subpoint.elevation.km),
                     }
-
-                    if has_observer and observer is not None:
-                        diff = satellite - observer
-                        topocentric = diff.at(now)
-                        alt, az, dist = topocentric.altaz()
-                        pos['elevation'] = float(alt.degrees)
-                        pos['azimuth'] = float(az.degrees)
-                        pos['distance'] = float(dist.km)
-                        pos['visible'] = bool(alt.degrees > 0)
 
                     # Ground track with caching (90 points, TTL 1800s)
                     cache_key_track = (sat_name, tle1[:20])
