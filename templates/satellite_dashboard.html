@@ -2438,7 +2438,18 @@
                 }
             }
 
-            if (!nextPass) nextPass = passes[0];
+            if (!nextPass) {
+                // All passes in the current window are in the past
+                document.getElementById('countdownSat').textContent = 'NO UPCOMING PASSES';
+                document.getElementById('countDays').textContent = '--';
+                document.getElementById('countHours').textContent = '--';
+                document.getElementById('countMins').textContent = '--';
+                document.getElementById('countSecs').textContent = '--';
+                ['countDays', 'countHours', 'countMins', 'countSecs'].forEach(id => {
+                    document.getElementById(id)?.classList.remove('active');
+                });
+                return;
+            }
 
             document.getElementById('countdownSat').textContent = nextPass.satellite;
 
