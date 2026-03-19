@@ -441,7 +441,6 @@
         let mapCrosshairRequestId = 0;
         let detectedDevicesPromise = null;
         let deviceDetectionRetryTimer = null;
-        let mapBootstrapRetryTimer = null;
         let clockInterval = null;
         let cleanupInterval = null;
         let delayedGpsInitTimer = null;
@@ -1736,7 +1735,6 @@ ACARS: ${r.statistics.acarsMessages} messages`;
             if (delayedDriverCheckTimer) { clearTimeout(delayedDriverCheckTimer); delayedDriverCheckTimer = null; }
             if (delayedAircraftDbTimer) { clearTimeout(delayedAircraftDbTimer); delayedAircraftDbTimer = null; }
             if (deviceDetectionRetryTimer) { clearTimeout(deviceDetectionRetryTimer); deviceDetectionRetryTimer = null; }
-            if (mapBootstrapRetryTimer) { clearTimeout(mapBootstrapRetryTimer); mapBootstrapRetryTimer = null; }
         });
 
         function ensureAdsbMapBootstrapped() {
@@ -2296,45 +2294,12 @@ sudo make install</code>
             const container = document.getElementById('radarMap');
             if (!container || container._leaflet_id) return;
 
-            if (typeof L === 'undefined' || typeof L.map !== 'function') {
-                if (!mapBootstrapRetryTimer) {
-                    mapBootstrapRetryTimer = setTimeout(() => {
-                        mapBootstrapRetryTimer = null;
-                        ensureAdsbMapBootstrapped();
-                    }, 300);
-                }
-                console.warn('ADS-B: Leaflet not ready yet, retrying map bootstrap');
-                return;
-            }
-
-            const normalizedLocation = (window.ObserverLocation && typeof ObserverLocation.normalize === 'function')
-                ? ObserverLocation.normalize(observerLocation?.lat, observerLocation?.lon)
-                : null;
-            const defaultLocation = {
-                lat: Number(window.INTERCEPT_DEFAULT_LAT ?? 51.5074),
-                lon: Number(window.INTERCEPT_DEFAULT_LON ?? -0.1278)
-            };
-            const initialLocation = normalizedLocation || defaultLocation;
-
-            observerLocation = initialLocation;
-
-            try {
-                radarMap = L.map('radarMap', {
-                    center: [initialLocation.lat, initialLocation.lon],
-                    zoom: 7,
-                    minZoom: 3,
-                    maxZoom: 15
-                });
-            } catch (e) {
-                console.error('ADS-B: L.map() failed:', e);
-                if (!mapBootstrapRetryTimer) {
-                    mapBootstrapRetryTimer = setTimeout(() => {
-                        mapBootstrapRetryTimer = null;
-                        ensureAdsbMapBootstrapped();
-                    }, 500);
-                }
-                return;
-            }
+            radarMap = L.map('radarMap', {
+                center: [observerLocation.lat, observerLocation.lon],
+                zoom: 7,
+                minZoom: 3,
+                maxZoom: 15
+            });
 
             // Use settings manager for tile layer (allows runtime changes)
             window.radarMap = radarMap;
