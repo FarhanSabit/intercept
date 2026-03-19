@@ -792,6 +792,7 @@
         const DASHBOARD_FETCH_TIMEOUT_MS = 30000;
         const PASS_FETCH_TIMEOUT_MS = 90000;
         const SAT_DRAWER_FETCH_TIMEOUT_MS = 15000;
+        const TELEMETRY_POLL_INTERVAL_MS = 3000;
         const BUILTIN_TX_FALLBACK = {
             25544: [
                 { description: 'APRS digipeater', downlink_low: 145.825, downlink_high: 145.825, uplink_low: null, uplink_high: null, mode: 'FM AX.25', baud: 1200, status: 'active', type: 'beacon', service: 'Packet' },
@@ -1015,10 +1016,10 @@
         }
 
         function applyTelemetryPosition(pos, options = {}) {
-            const { updateVisible = false } = options;
+            const { updateVisible = false, noradId = selectedSatellite } = options;
             if (!pos) return;
             latestLivePosition = pos;
-            cacheLivePosition(selectedSatellite, pos);
+            cacheLivePosition(noradId, pos);
 
             const telLat = document.getElementById('telLat');
             const telLon = document.getElementById('telLon');
@@ -1259,7 +1260,13 @@
             if (!pos) {
                 return;
             }
-            applyTelemetryPosition({ ...pos, visibleCount }, { updateVisible: true });
+            applyTelemetryPosition(
+                { ...pos, visibleCount },
+                {
+                    updateVisible: true,
+                    noradId: parseInt(pos.norad_id, 10) || selectedSatellite
+                }
+            );
         }
 
         function findSelectedPosition(positions) {
@@ -1291,6 +1298,7 @@
             const lat = parseFloat(document.getElementById('obsLat')?.value);
             const lon = parseFloat(document.getElementById('obsLon')?.value);
             if (!Number.isFinite(lat) || !Number.isFinite(lon) || !selectedSatellite) return;
+            const requestedSatellite = selectedSatellite;
 
             try {
                 const controller = new AbortController();
@@ -1303,7 +1311,7 @@
                     body: JSON.stringify({
                         latitude: lat,
                         longitude: lon,
-                        satellites: [selectedSatellite],
+                        satellites: [requestedSatellite],
                         includeTrack: false
                     })
                 });
@@ -1313,16 +1321,17 @@
                 if (!contentType.includes('application/json')) return;
                 const data = await response.json();
                 if (data.status !== 'success' || !Array.isArray(data.positions)) return;
-                if (!findSelectedPosition(data.positions)) {
-                    return;
-                }
+                const pos = data.positions.find(p => parseInt(p.norad_id, 10) === requestedSatellite) || null;
+                if (!pos) return;
+                cacheLivePosition(requestedSatellite, pos);
+                if (requestedSatellite !== selectedSatellite) return;
                 handleLivePositions(data.positions);
             } catch (_) {}
         }
 
         function startTelemetryPolling() {
             if (_telemetryPollTimer) return;
-            _telemetryPollTimer = setInterval(fetchCurrentTelemetry, 10000);
+            _telemetryPollTimer = setInterval(fetchCurrentTelemetry, TELEMETRY_POLL_INTERVAL_MS);
         }
 
         function splitAtAntimeridian(track) {
