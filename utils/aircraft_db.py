@@ -14,8 +14,9 @@ from urllib.request import Request, urlopen
 
 logger = logging.getLogger('intercept.aircraft_db')
 
-# Database file location (project root)
-DB_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Database file location (persisted under data/adsb/ for Docker volume compatibility)
+DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'adsb')
+os.makedirs(DB_DIR, exist_ok=True)
 DB_FILE = os.path.join(DB_DIR, 'aircraft_db.json')
 DB_META_FILE = os.path.join(DB_DIR, 'aircraft_db_meta.json')
 

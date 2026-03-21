@@ -33,6 +33,7 @@ services:
       - ./data/weather_sat:/app/data/weather_sat
       - ./data/radiosonde:/app/data/radiosonde
       - ./data/subghz:/app/data/subghz
+      - ./data/adsb:/app/data/adsb
       # Optional: mount logs directory
       # - ./logs:/app/logs
     environment:
@@ -92,6 +93,7 @@ services:
       - ./data/weather_sat:/app/data/weather_sat
       - ./data/radiosonde:/app/data/radiosonde
       - ./data/subghz:/app/data/subghz
+      - ./data/adsb:/app/data/adsb
     environment:
       - TZ=${TZ:-UTC}
       - INTERCEPT_HOST=0.0.0.0
