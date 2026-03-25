@@ -38,74 +38,23 @@ const WeatherSat = (function() {
     let lastDecodeSatellite = null;
     let consoleFilter = 'all';
 
-    // Timezone support
-    const TZ_MAP = {
-        'UTC': 'UTC',
-        'local': null, // browser default
-        'US/Eastern': 'America/New_York',
-        'US/Central': 'America/Chicago',
-        'US/Mountain': 'America/Denver',
-        'US/Pacific': 'America/Los_Angeles',
-    };
-    let selectedTimezone = localStorage.getItem('wxsatTimezone') || 'UTC';
-
-    /**
-     * Format an ISO date string for the selected timezone.
-     * @param {string} isoString - ISO 8601 date string
-     * @param {object} [opts] - Additional Intl.DateTimeFormat options
-     * @returns {string} Formatted date/time string
-     */
-    function formatTimeForTZ(isoString, opts = {}) {
-        if (!isoString) return '--';
-        try {
-            const date = new Date(isoString);
-            if (isNaN(date.getTime())) return isoString;
-            const tz = TZ_MAP[selectedTimezone];
-            const defaults = { hour: '2-digit', minute: '2-digit', hour12: false };
-            const options = { ...defaults, ...opts };
-            if (tz) options.timeZone = tz;
-            return date.toLocaleString(undefined, options);
-        } catch {
-            return isoString;
-        }
-    }
-
-    /**
-     * Format a short time (HH:MM) for the selected timezone.
-     */
+    // Timezone — delegates to global InterceptTime utility
     function formatShortTime(isoString) {
-        return formatTimeForTZ(isoString, { hour: '2-digit', minute: '2-digit', hour12: false });
+        return typeof InterceptTime !== 'undefined' ? InterceptTime.shortTime(isoString) : (isoString || '--');
     }
 
-    /**
-     * Format date + time for the selected timezone.
-     */
     function formatDateTime(isoString) {
-        return formatTimeForTZ(isoString, {
-            month: 'short', day: 'numeric',
-            hour: '2-digit', minute: '2-digit', hour12: false
-        });
+        return typeof InterceptTime !== 'undefined' ? InterceptTime.dateTime(isoString) : (isoString || '--');
     }
 
-    /**
-     * Get a short timezone label for display.
-     */
     function getTZLabel() {
-        if (selectedTimezone === 'local') return '';
-        if (selectedTimezone === 'UTC') return ' UTC';
-        const labels = { 'US/Eastern': ' ET', 'US/Central': ' CT', 'US/Mountain': ' MT', 'US/Pacific': ' PT' };
-        return labels[selectedTimezone] || '';
+        return typeof InterceptTime !== 'undefined' ? InterceptTime.tzSuffix() : '';
     }
 
-    /**
-     * Set timezone and refresh all displays.
-     */
     function setTimezone(tz) {
-        selectedTimezone = tz;
-        localStorage.setItem('wxsatTimezone', tz);
+        if (typeof InterceptTime !== 'undefined') InterceptTime.setTimezone(tz);
         const sel = document.getElementById('wxsatTimezone');
         if (sel && sel.value !== tz) sel.value = tz;
-        // Refresh all time-dependent displays
         applyPassFilter();
         renderGallery();
         updateTimelineLabels();
@@ -137,9 +86,9 @@ const WeatherSat = (function() {
      * Initialize the Weather Satellite mode
      */
     function init() {
-        // Restore timezone selector
+        // Sync timezone selector with global setting
         const tzSel = document.getElementById('wxsatTimezone');
-        if (tzSel) tzSel.value = selectedTimezone;
+        if (tzSel && typeof InterceptTime !== 'undefined') tzSel.value = InterceptTime.getTimezone();
 
         if (initialized) {
             checkStatus();
@@ -153,6 +102,17 @@ const WeatherSat = (function() {
             return;
         }
         initialized = true;
+
+        // Listen for global timezone/format changes
+        if (typeof InterceptTime !== 'undefined') {
+            InterceptTime.onChange(() => {
+                const sel = document.getElementById('wxsatTimezone');
+                if (sel) sel.value = InterceptTime.getTimezone();
+                applyPassFilter();
+                renderGallery();
+                updateTimelineLabels();
+            });
+        }
 
         checkStatus();
         loadImages();
@@ -1870,15 +1830,14 @@ const WeatherSat = (function() {
             return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
         });
 
-        // Group by date (timezone-aware)
+        // Group by date (timezone-aware via global InterceptTime)
         const groups = {};
         sorted.forEach(img => {
             let dateKey = 'Unknown Date';
             if (img.timestamp) {
-                const tz = TZ_MAP[selectedTimezone];
-                const opts = { year: 'numeric', month: 'short', day: 'numeric' };
-                if (tz) opts.timeZone = tz;
-                dateKey = new Date(img.timestamp).toLocaleDateString(undefined, opts);
+                dateKey = typeof InterceptTime !== 'undefined'
+                    ? InterceptTime.dateOnly(img.timestamp)
+                    : new Date(img.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
             }
             if (!groups[dateKey]) groups[dateKey] = [];
             groups[dateKey].push(img);
@@ -2214,10 +2173,9 @@ const WeatherSat = (function() {
 
         const type = logType || 'info';
         const now = new Date();
-        const tz = TZ_MAP[selectedTimezone];
-        const tsOpts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-        if (tz) tsOpts.timeZone = tz;
-        const ts = now.toLocaleTimeString(undefined, tsOpts);
+        const ts = typeof InterceptTime !== 'undefined'
+            ? InterceptTime.fullTime(now)
+            : now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
         const entry = document.createElement('div');
         entry.className = `wxsat-console-entry wxsat-log-${type}`;
