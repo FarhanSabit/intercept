@@ -2485,6 +2485,25 @@
                         </div>
                         <div class="wxsat-strip-divider"></div>
                         <div class="wxsat-strip-group">
+                            <div class="wxsat-strip-stat">
+                                <span class="wxsat-strip-value" id="wxsatStripPassCount">0</span>
+                                <span class="wxsat-strip-label">PASSES</span>
+                            </div>
+                        </div>
+                        <div class="wxsat-strip-divider"></div>
+                        <div class="wxsat-strip-group">
+                            <span class="wxsat-strip-label" style="margin-right: 4px;">TZ</span>
+                            <select id="wxsatTimezone" class="wxsat-tz-select" onchange="WeatherSat.setTimezone(this.value)">
+                                <option value="UTC">UTC</option>
+                                <option value="local">Local</option>
+                                <option value="US/Eastern">Eastern</option>
+                                <option value="US/Central">Central</option>
+                                <option value="US/Mountain">Mountain</option>
+                                <option value="US/Pacific">Pacific</option>
+                            </select>
+                        </div>
+                        <div class="wxsat-strip-divider"></div>
+                        <div class="wxsat-strip-group">
                             <label class="wxsat-schedule-toggle" title="Auto-capture passes">
                                 <input type="checkbox" id="wxsatAutoSchedule" onchange="WeatherSat.toggleScheduler(this)">
                                 <span class="wxsat-toggle-label">AUTO</span>
@@ -2515,6 +2534,29 @@
                         </div>
                     </div>
 
+                    <!-- Pass Analysis Bar -->
+                    <div class="wxsat-analysis-bar" id="wxsatAnalysisBar">
+                        <div class="wxsat-analysis-stats">
+                            <div class="wxsat-analysis-stat">
+                                <span class="wxsat-analysis-value" id="wxsatAnalysisTotal">0</span>
+                                <span class="wxsat-analysis-label">24h passes</span>
+                            </div>
+                            <div class="wxsat-analysis-stat">
+                                <span class="wxsat-analysis-value excellent" id="wxsatAnalysisExcellent">0</span>
+                                <span class="wxsat-analysis-label">excellent</span>
+                            </div>
+                            <div class="wxsat-analysis-stat">
+                                <span class="wxsat-analysis-value good" id="wxsatAnalysisGood">0</span>
+                                <span class="wxsat-analysis-label">good</span>
+                            </div>
+                            <div class="wxsat-analysis-stat">
+                                <span class="wxsat-analysis-value fair" id="wxsatAnalysisFair">0</span>
+                                <span class="wxsat-analysis-label">fair</span>
+                            </div>
+                        </div>
+                        <div class="wxsat-analysis-best" id="wxsatAnalysisBest">--</div>
+                    </div>
+
                     <!-- Capture progress -->
                     <div class="wxsat-capture-status" id="wxsatCaptureStatus">
                         <div class="wxsat-capture-info">
@@ -2543,8 +2585,18 @@
                                     <span class="wxsat-phase-step" data-phase="complete">COMPLETE</span>
                                 </div>
                             </div>
-                            <button class="wxsat-strip-btn" id="wxsatConsoleToggle"
-                                    onclick="WeatherSat.toggleConsole()" title="Toggle console">&#x25BC;</button>
+                            <div class="wxsat-console-filters" id="wxsatConsoleFilters">
+                                <button class="wxsat-console-filter active" data-filter="all" onclick="WeatherSat.filterConsole('all')">ALL</button>
+                                <button class="wxsat-console-filter" data-filter="signal" onclick="WeatherSat.filterConsole('signal')">SIGNAL</button>
+                                <button class="wxsat-console-filter" data-filter="progress" onclick="WeatherSat.filterConsole('progress')">PROG</button>
+                                <button class="wxsat-console-filter" data-filter="error" onclick="WeatherSat.filterConsole('error')">ERR</button>
+                            </div>
+                            <div class="wxsat-console-actions">
+                                <button class="wxsat-strip-btn" onclick="WeatherSat.exportConsole()" title="Copy log to clipboard">COPY</button>
+                                <button class="wxsat-strip-btn" onclick="WeatherSat.clearConsole()" title="Clear console">CLR</button>
+                                <button class="wxsat-strip-btn" id="wxsatConsoleToggle"
+                                        onclick="WeatherSat.toggleConsole()" title="Toggle console">&#x25BC;</button>
+                            </div>
                         </div>
                         <div class="wxsat-console-body" id="wxsatConsoleBody">
                             <div class="wxsat-console-log" id="wxsatConsoleLog">

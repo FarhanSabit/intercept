@@ -36,11 +36,111 @@ const WeatherSat = (function() {
     let imageRefreshInterval = null;
     let lastDecodeJobSignature = null;
     let lastDecodeSatellite = null;
+    let consoleFilter = 'all';
+
+    // Timezone support
+    const TZ_MAP = {
+        'UTC': 'UTC',
+        'local': null, // browser default
+        'US/Eastern': 'America/New_York',
+        'US/Central': 'America/Chicago',
+        'US/Mountain': 'America/Denver',
+        'US/Pacific': 'America/Los_Angeles',
+    };
+    let selectedTimezone = localStorage.getItem('wxsatTimezone') || 'UTC';
+
+    /**
+     * Format an ISO date string for the selected timezone.
+     * @param {string} isoString - ISO 8601 date string
+     * @param {object} [opts] - Additional Intl.DateTimeFormat options
+     * @returns {string} Formatted date/time string
+     */
+    function formatTimeForTZ(isoString, opts = {}) {
+        if (!isoString) return '--';
+        try {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return isoString;
+            const tz = TZ_MAP[selectedTimezone];
+            const defaults = { hour: '2-digit', minute: '2-digit', hour12: false };
+            const options = { ...defaults, ...opts };
+            if (tz) options.timeZone = tz;
+            return date.toLocaleString(undefined, options);
+        } catch {
+            return isoString;
+        }
+    }
+
+    /**
+     * Format a short time (HH:MM) for the selected timezone.
+     */
+    function formatShortTime(isoString) {
+        return formatTimeForTZ(isoString, { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    /**
+     * Format date + time for the selected timezone.
+     */
+    function formatDateTime(isoString) {
+        return formatTimeForTZ(isoString, {
+            month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
+        });
+    }
+
+    /**
+     * Get a short timezone label for display.
+     */
+    function getTZLabel() {
+        if (selectedTimezone === 'local') return '';
+        if (selectedTimezone === 'UTC') return ' UTC';
+        const labels = { 'US/Eastern': ' ET', 'US/Central': ' CT', 'US/Mountain': ' MT', 'US/Pacific': ' PT' };
+        return labels[selectedTimezone] || '';
+    }
+
+    /**
+     * Set timezone and refresh all displays.
+     */
+    function setTimezone(tz) {
+        selectedTimezone = tz;
+        localStorage.setItem('wxsatTimezone', tz);
+        const sel = document.getElementById('wxsatTimezone');
+        if (sel && sel.value !== tz) sel.value = tz;
+        // Refresh all time-dependent displays
+        applyPassFilter();
+        renderGallery();
+        updateTimelineLabels();
+    }
+
+    /**
+     * Convert an azimuth angle (0-360) to a cardinal direction label.
+     */
+    function azToDir(az) {
+        if (typeof az !== 'number' || isNaN(az)) return '?';
+        const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+        return dirs[Math.round(az / 22.5) % 16];
+    }
+
+    /**
+     * Find the best upcoming pass (highest max elevation).
+     */
+    function findBestPass(passList) {
+        const now = new Date();
+        const upcoming = passList.filter(p => {
+            const end = parsePassDate(p.endTimeISO);
+            return end && end > now;
+        });
+        if (upcoming.length === 0) return null;
+        return upcoming.reduce((best, p) => (p.maxEl > best.maxEl) ? p : best, upcoming[0]);
+    }
 
     /**
      * Initialize the Weather Satellite mode
      */
     function init() {
+        // Restore timezone selector
+        const tzSel = document.getElementById('wxsatTimezone');
+        if (tzSel) tzSel.value = selectedTimezone;
+
         if (initialized) {
             checkStatus();
             loadImages();
@@ -643,7 +743,10 @@ const WeatherSat = (function() {
             renderPasses([]);
             renderTimeline([]);
             updateCountdownFromPasses();
+            updatePassAnalysis([]);
             updateGroundTrack(null);
+            const passCountEl = document.getElementById('wxsatStripPassCount');
+            if (passCountEl) passCountEl.textContent = '0';
             return;
         }
 
@@ -675,7 +778,12 @@ const WeatherSat = (function() {
         selectedPassIndex = -1;
         renderPasses(passes);
         renderTimeline(passes);
+        updateTimelineLabels();
         updateCountdownFromPasses();
+        updatePassAnalysis(passes);
+        // Update strip pass count
+        const passCountEl = document.getElementById('wxsatStripPassCount');
+        if (passCountEl) passCountEl.textContent = passes.length;
         if (passes.length > 0) {
             selectPass(0);
         } else {
@@ -730,14 +838,17 @@ const WeatherSat = (function() {
             return;
         }
 
+        const bestPass = findBestPass(passList);
+
         container.innerHTML = passList.map((pass, idx) => {
             const modeClass = pass.mode === 'APT' ? 'apt' : 'lrpt';
-            const timeStr = pass.startTime || '--';
+            const timeStr = formatDateTime(pass.startTimeISO) + getTZLabel();
             const now = new Date();
             const passStart = parsePassDate(pass.startTimeISO);
             const diffMs = passStart ? passStart - now : NaN;
             const diffMins = Number.isFinite(diffMs) ? Math.floor(diffMs / 60000) : NaN;
             const isSelected = idx === selectedPassIndex;
+            const isBest = bestPass && pass.startTimeISO === bestPass.startTimeISO && pass.satellite === bestPass.satellite;
 
             let countdown = '--';
             if (!Number.isFinite(diffMs)) {
@@ -752,10 +863,14 @@ const WeatherSat = (function() {
                 countdown = `in ${hrs}h${mins}m`;
             }
 
+            const riseDir = azToDir(pass.riseAz);
+            const setDir = azToDir(pass.setAz);
+            const bestBadge = isBest ? '<span class="wxsat-pass-best-badge">BEST</span>' : '';
+
             return `
                 <div class="wxsat-pass-card${isSelected ? ' selected' : ''}" onclick="WeatherSat.selectPass(${idx})">
                     <div class="wxsat-pass-sat">
-                        <span class="wxsat-pass-sat-name">${escapeHtml(pass.name)}</span>
+                        <span class="wxsat-pass-sat-name">${escapeHtml(pass.name)}${bestBadge}</span>
                         <span class="wxsat-pass-mode ${modeClass}">${escapeHtml(pass.mode)}</span>
                     </div>
                     <div class="wxsat-pass-details">
@@ -765,8 +880,8 @@ const WeatherSat = (function() {
                         <span class="wxsat-pass-detail-value">${pass.maxEl}&deg;</span>
                         <span class="wxsat-pass-detail-label">Duration</span>
                         <span class="wxsat-pass-detail-value">${pass.duration} min</span>
-                        <span class="wxsat-pass-detail-label">Freq</span>
-                        <span class="wxsat-pass-detail-value">${pass.frequency} MHz</span>
+                        <span class="wxsat-pass-detail-label">Direction</span>
+                        <span class="wxsat-pass-detail-value">${riseDir} <span class="wxsat-dir-arrow">&rarr;</span> ${setDir}</span>
                     </div>
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
                         <span class="wxsat-pass-quality ${pass.quality}">${pass.quality}</span>
@@ -1334,12 +1449,17 @@ const WeatherSat = (function() {
         if (hoursEl) hoursEl.textContent = h.toString().padStart(2, '0');
         if (minsEl) minsEl.textContent = m.toString().padStart(2, '0');
         if (secsEl) secsEl.textContent = s.toString().padStart(2, '0');
+        const passTimeStr = formatShortTime(nextPass.startTimeISO) + getTZLabel();
         if (satEl) satEl.textContent = `${nextPass.name} ${nextPass.frequency} MHz`;
         if (detailEl) {
             if (isActive) {
                 detailEl.textContent = `ACTIVE - ${nextPass.maxEl}\u00b0 max el`;
             } else {
-                detailEl.textContent = `${nextPass.maxEl}\u00b0 max el / ${nextPass.duration} min`;
+                const bestPass = findBestPass(filtered);
+                const bestNote = bestPass && bestPass.startTimeISO !== nextPass.startTimeISO
+                    ? ` | Best: ${bestPass.name} ${formatShortTime(bestPass.startTimeISO)}${getTZLabel()} (${bestPass.maxEl}\u00b0)`
+                    : '';
+                detailEl.textContent = `${passTimeStr} / ${nextPass.maxEl}\u00b0 max el / ${nextPass.duration} min${bestNote}`;
             }
         }
 
@@ -1391,7 +1511,7 @@ const WeatherSat = (function() {
             marker.className = `wxsat-timeline-pass ${pass.mode === 'LRPT' ? 'lrpt' : 'apt'}`;
             marker.style.left = startPct + '%';
             marker.style.width = widthPct + '%';
-            marker.title = `${pass.name} ${pass.startTime} (${pass.maxEl}\u00b0)`;
+            marker.title = `${pass.name} ${formatShortTime(pass.startTimeISO)}${getTZLabel()} (${pass.maxEl}\u00b0)`;
             marker.onclick = () => selectPass(idx);
             track.appendChild(marker);
         });
@@ -1412,6 +1532,71 @@ const WeatherSat = (function() {
         dayStart.setHours(0, 0, 0, 0);
         const pct = ((now - dayStart) / (24 * 60 * 60 * 1000)) * 100;
         cursor.style.left = pct + '%';
+    }
+
+    /**
+     * Update timeline hour labels to match the selected timezone.
+     */
+    function updateTimelineLabels() {
+        const labels = document.querySelector('.wxsat-timeline-labels');
+        if (!labels) return;
+        const hours = [0, 6, 12, 18, 24];
+        const spans = labels.querySelectorAll('span');
+        if (spans.length !== hours.length) return;
+
+        hours.forEach((h, i) => {
+            if (selectedTimezone === 'UTC' || selectedTimezone === 'local') {
+                spans[i].textContent = h === 24 ? '24:00' : `${String(h).padStart(2, '0')}:00`;
+            } else {
+                // Show timezone-adjusted labels
+                const d = new Date();
+                d.setHours(h, 0, 0, 0);
+                const tz = TZ_MAP[selectedTimezone];
+                const opts = { hour: '2-digit', minute: '2-digit', hour12: false };
+                if (tz) opts.timeZone = tz;
+                if (h === 24) {
+                    spans[i].textContent = '24:00';
+                } else {
+                    spans[i].textContent = d.toLocaleTimeString(undefined, opts).slice(0, 5);
+                }
+            }
+        });
+    }
+
+    /**
+     * Update the pass analysis bar with stats about current passes.
+     */
+    function updatePassAnalysis(passList) {
+        const totalEl = document.getElementById('wxsatAnalysisTotal');
+        const excellentEl = document.getElementById('wxsatAnalysisExcellent');
+        const goodEl = document.getElementById('wxsatAnalysisGood');
+        const fairEl = document.getElementById('wxsatAnalysisFair');
+        const bestEl = document.getElementById('wxsatAnalysisBest');
+
+        const now = new Date();
+        const upcoming = passList.filter(p => {
+            const end = parsePassDate(p.endTimeISO);
+            return end && end > now;
+        });
+
+        const excellent = upcoming.filter(p => p.quality === 'excellent').length;
+        const good = upcoming.filter(p => p.quality === 'good').length;
+        const fair = upcoming.filter(p => p.quality === 'fair').length;
+
+        if (totalEl) totalEl.textContent = upcoming.length;
+        if (excellentEl) excellentEl.textContent = excellent;
+        if (goodEl) goodEl.textContent = good;
+        if (fairEl) fairEl.textContent = fair;
+
+        const best = findBestPass(passList);
+        if (bestEl) {
+            if (best) {
+                const t = formatShortTime(best.startTimeISO) + getTZLabel();
+                bestEl.textContent = `Best: ${best.name} at ${t} (${best.maxEl}\u00b0 el, ${best.duration} min)`;
+            } else {
+                bestEl.textContent = 'No upcoming passes';
+            }
+        }
     }
 
     // ========================
@@ -1627,12 +1812,16 @@ const WeatherSat = (function() {
             return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
         });
 
-        // Group by date
+        // Group by date (timezone-aware)
         const groups = {};
         sorted.forEach(img => {
-            const dateKey = img.timestamp
-                ? new Date(img.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-                : 'Unknown Date';
+            let dateKey = 'Unknown Date';
+            if (img.timestamp) {
+                const tz = TZ_MAP[selectedTimezone];
+                const opts = { year: 'numeric', month: 'short', day: 'numeric' };
+                if (tz) opts.timeZone = tz;
+                dateKey = new Date(img.timestamp).toLocaleDateString(undefined, opts);
+            }
             if (!groups[dateKey]) groups[dateKey] = [];
             groups[dateKey].push(img);
         });
@@ -1788,11 +1977,7 @@ const WeatherSat = (function() {
      */
     function formatTimestamp(isoString) {
         if (!isoString) return '--';
-        try {
-            return new Date(isoString).toLocaleString();
-        } catch {
-            return isoString;
-        }
+        return formatDateTime(isoString) + getTZLabel();
     }
 
     function ensureImageRefresh() {
@@ -1969,11 +2154,24 @@ const WeatherSat = (function() {
         const log = document.getElementById('wxsatConsoleLog');
         if (!log) return;
 
-        const entry = document.createElement('div');
-        entry.className = `wxsat-console-entry wxsat-log-${logType || 'info'}`;
-        entry.textContent = message;
-        log.appendChild(entry);
+        const type = logType || 'info';
+        const now = new Date();
+        const tz = TZ_MAP[selectedTimezone];
+        const tsOpts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+        if (tz) tsOpts.timeZone = tz;
+        const ts = now.toLocaleTimeString(undefined, tsOpts);
 
+        const entry = document.createElement('div');
+        entry.className = `wxsat-console-entry wxsat-log-${type}`;
+        entry.dataset.logType = type;
+        entry.innerHTML = `<span class="wxsat-console-ts">${ts}</span>${escapeHtml(message)}`;
+
+        // Apply current filter visibility
+        if (consoleFilter !== 'all' && type !== consoleFilter) {
+            entry.style.display = 'none';
+        }
+
+        log.appendChild(entry);
         consoleEntries.push(entry);
 
         // Cap at 200 entries
@@ -1984,6 +2182,40 @@ const WeatherSat = (function() {
 
         // Auto-scroll to bottom
         log.scrollTop = log.scrollHeight;
+    }
+
+    /**
+     * Filter console entries by log type.
+     */
+    function filterConsole(filter) {
+        consoleFilter = filter;
+        // Update filter button states
+        document.querySelectorAll('.wxsat-console-filter').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+        // Show/hide entries
+        consoleEntries.forEach(entry => {
+            if (filter === 'all') {
+                entry.style.display = '';
+            } else {
+                entry.style.display = entry.dataset.logType === filter ? '' : 'none';
+            }
+        });
+        // Scroll to bottom
+        const log = document.getElementById('wxsatConsoleLog');
+        if (log) log.scrollTop = log.scrollHeight;
+    }
+
+    /**
+     * Export console contents to clipboard.
+     */
+    function exportConsole() {
+        const text = consoleEntries.map(e => e.textContent).join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('Weather Sat', 'Console log copied to clipboard');
+        }).catch(() => {
+            showNotification('Weather Sat', 'Failed to copy console log');
+        });
     }
 
     /**
@@ -2048,7 +2280,13 @@ const WeatherSat = (function() {
         const log = document.getElementById('wxsatConsoleLog');
         if (log) log.innerHTML = '';
         consoleEntries = [];
+        consoleFilter = 'all';
         currentPhase = 'idle';
+
+        // Reset filter buttons
+        document.querySelectorAll('.wxsat-console-filter').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === 'all');
+        });
 
         document.querySelectorAll('#wxsatPhaseIndicator .wxsat-phase-step').forEach(step => {
             step.classList.remove('active', 'completed', 'error');
@@ -2092,6 +2330,90 @@ const WeatherSat = (function() {
         stopStream();
     }
 
+    /**
+     * Load demo/sample data for UI testing without a live satellite pass.
+     * Populates passes, console, and analysis bar with realistic fake data.
+     */
+    function loadDemoData() {
+        const now = new Date();
+
+        // Generate sample passes over next 24h
+        const demoSats = ['METEOR-M2-3', 'METEOR-M2-4'];
+        const demoPasses = [];
+
+        const offsets = [25, 95, 200, 340, 510, 720, 880, 1020];
+        const elevations = [72, 45, 28, 63, 18, 55, 82, 35];
+        const durations = [14, 12, 8, 13, 6, 11, 15, 10];
+        const riseAzs = [350, 15, 200, 310, 170, 40, 280, 90];
+        const setAzs = [170, 195, 20, 130, 350, 220, 100, 270];
+
+        offsets.forEach((offset, i) => {
+            const start = new Date(now.getTime() + offset * 60000);
+            const end = new Date(start.getTime() + durations[i] * 60000);
+            const sat = demoSats[i % 2];
+            const el = elevations[i];
+            const quality = el >= 60 ? 'excellent' : el >= 30 ? 'good' : 'fair';
+
+            demoPasses.push({
+                id: `${sat}_demo_${i}`,
+                satellite: sat,
+                name: sat === 'METEOR-M2-3' ? 'Meteor-M2-3' : 'Meteor-M2-4',
+                frequency: 137.9,
+                mode: 'LRPT',
+                startTime: start.toISOString().replace('T', ' ').slice(0, 16) + ' UTC',
+                startTimeISO: start.toISOString(),
+                endTimeISO: end.toISOString(),
+                maxEl: el,
+                maxElAz: (riseAzs[i] + setAzs[i]) / 2,
+                riseAz: riseAzs[i],
+                setAz: setAzs[i],
+                duration: durations[i],
+                quality: quality,
+                trajectory: [],
+                groundTrack: [],
+            });
+        });
+
+        allPasses = demoPasses;
+        applyPassFilter();
+
+        // Simulate console output
+        clearConsole();
+        showConsole(true);
+        const demoLogs = [
+            ['SatDump v1.2.2 initialized', 'info'],
+            ['Pipeline: meteor_m2-x_lrpt', 'info'],
+            ['Frequency: 137.900 MHz | Sample rate: 2.4 MHz', 'info'],
+            ['RTL-SDR device 0 (SN: 00000101) opened', 'info'],
+            ['Tuning to 137900000 Hz...', 'info'],
+            ['Gain set to 40.0 dB', 'debug'],
+            ['Waiting for signal...', 'info'],
+            ['LRPT signal detected! SNR: 8.2 dB', 'signal'],
+            ['Viterbi lock acquired', 'signal'],
+            ['Frame sync OK - decoding frames', 'signal'],
+            ['Decoding LRPT... 15%', 'progress'],
+            ['Decoding LRPT... 30%', 'progress'],
+            ['Decoding LRPT... 45%', 'progress'],
+            ['Channel 1 (visible) - 1540 lines', 'info'],
+            ['Channel 2 (infrared) - 1540 lines', 'info'],
+            ['Decoding LRPT... 60%', 'progress'],
+            ['Decoding LRPT... 75%', 'progress'],
+            ['Decoding LRPT... 90%', 'progress'],
+            ['Image saved: meteor_m2-3_rgb_composite.png (2.4 MB)', 'save'],
+            ['Image saved: meteor_m2-3_channel_1.png (1.1 MB)', 'save'],
+            ['Image saved: meteor_m2-3_thermal.png (1.3 MB)', 'save'],
+            ['Decoding complete - 3 images produced', 'info'],
+            ['Signal lost - satellite below horizon', 'warning'],
+            ['Pass duration: 13m 42s', 'info'],
+        ];
+
+        demoLogs.forEach((entry, i) => {
+            setTimeout(() => addConsoleEntry(entry[0], entry[1]), i * 120);
+        });
+
+        showNotification('Weather Sat', 'Demo data loaded - showing sample passes and console output');
+    }
+
     // Public API
     return {
         init,
@@ -2113,6 +2435,11 @@ const WeatherSat = (function() {
         toggleScheduler,
         invalidateMap,
         toggleConsole,
+        setTimezone,
+        filterConsole,
+        exportConsole,
+        clearConsole,
+        loadDemoData,
         _getModalFilename: () => currentModalFilename,
     };
 })();
