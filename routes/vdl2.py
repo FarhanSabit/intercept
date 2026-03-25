@@ -83,11 +83,33 @@ def stream_vdl2_output(process: subprocess.Popen, is_text_mode: bool = False) ->
                 data['type'] = 'vdl2'
                 data['timestamp'] = datetime.utcnow().isoformat() + 'Z'
 
-                # Enrich with translated ACARS label at top level (consistent with ACARS route)
+                # Flatten nested VDL2 identifying fields to top level for correlator matching
+                # dumpvdl2 nests flight/reg inside vdl2.avlc.acars and ICAO in avlc.src.addr
                 try:
                     vdl2_inner = data.get('vdl2', data)
-                    acars_payload = (vdl2_inner.get('avlc') or {}).get('acars')
-                    if acars_payload and acars_payload.get('label'):
+                    avlc = vdl2_inner.get('avlc') or {}
+                    acars_payload = avlc.get('acars') or {}
+
+                    # Promote ACARS fields to top level so FlightCorrelator can match them
+                    if acars_payload.get('flight'):
+                        data['flight'] = acars_payload['flight']
+                    if acars_payload.get('reg'):
+                        data['reg'] = acars_payload['reg']
+                        data['tail'] = acars_payload['reg']
+                    if acars_payload.get('label'):
+                        data['label'] = acars_payload['label']
+                    if acars_payload.get('msg_text'):
+                        data['text'] = acars_payload['msg_text']
+
+                    # Promote AVLC source address (often ICAO hex for aircraft)
+                    src_addr = (avlc.get('src') or {}).get('addr', '')
+                    src_type = (avlc.get('src') or {}).get('type', '')
+                    if src_addr and src_type == 'Aircraft':
+                        data['icao'] = src_addr
+                        data['addr'] = src_addr
+
+                    # Enrich with translated ACARS label (consistent with ACARS route)
+                    if acars_payload.get('label'):
                         translation = translate_message({
                             'label': acars_payload.get('label'),
                             'text': acars_payload.get('msg_text', ''),

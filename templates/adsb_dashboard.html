@@ -4930,7 +4930,9 @@ sudo make install</code>
             const acars = avlc.acars || {};
             const flight = acars.flight || '';
             const msgText = acars.msg_text || '';
-            const time = new Date().toLocaleTimeString();
+            const time = typeof InterceptTime !== 'undefined'
+                ? InterceptTime.shortTime(new Date()) + InterceptTime.tzSuffix()
+                : new Date().toLocaleTimeString();
             const freq = inner.freq ? (inner.freq / 1000000).toFixed(3) : '';
 
             // Store for CSV export
