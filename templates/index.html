@@ -2612,10 +2612,36 @@
                             <div class="wxsat-passes-header">
                                 <span class="wxsat-passes-title">Upcoming Passes</span>
                                 <span class="wxsat-passes-count" id="wxsatPassesCount">0</span>
+                                <button class="wxsat-strip-btn" onclick="WeatherSat.loadPasses()" title="Refresh pass predictions" style="margin-left: auto; font-size: 9px; padding: 2px 6px;">REFRESH</button>
+                            </div>
+                            <!-- Pass geometry detail (shown when pass selected) -->
+                            <div class="wxsat-pass-geometry" id="wxsatPassGeometry" style="display: none;">
+                                <div class="wxsat-geom-event">
+                                    <span class="wxsat-geom-label">AOS</span>
+                                    <span class="wxsat-geom-time" id="wxsatGeomAosTime">--</span>
+                                    <span class="wxsat-geom-az" id="wxsatGeomAosAz">--</span>
+                                </div>
+                                <div class="wxsat-geom-arrow">&rarr;</div>
+                                <div class="wxsat-geom-event wxsat-geom-tca">
+                                    <span class="wxsat-geom-label">TCA</span>
+                                    <span class="wxsat-geom-time" id="wxsatGeomTcaEl">--</span>
+                                    <span class="wxsat-geom-az" id="wxsatGeomTcaAz">--</span>
+                                </div>
+                                <div class="wxsat-geom-arrow">&rarr;</div>
+                                <div class="wxsat-geom-event">
+                                    <span class="wxsat-geom-label">LOS</span>
+                                    <span class="wxsat-geom-time" id="wxsatGeomLosTime">--</span>
+                                    <span class="wxsat-geom-az" id="wxsatGeomLosAz">--</span>
+                                </div>
+                                <div class="wxsat-geom-meta" id="wxsatGeomMeta">--</div>
                             </div>
                             <div class="wxsat-passes-list" id="wxsatPassesList">
                                 <div class="wxsat-gallery-empty">
-                                    <p>Set location to see pass predictions</p>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 32px; height: 32px; margin-bottom: 8px; opacity: 0.3;">
+                                        <circle cx="12" cy="12" r="10"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>
+                                    </svg>
+                                    <p style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Set your location</p>
+                                    <p style="font-size: 11px; margin-top: 4px;">Enter lat/lon in the strip bar above or click the GPS button to load pass predictions</p>
                                 </div>
                             </div>
                         </div>

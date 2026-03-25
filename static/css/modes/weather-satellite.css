@@ -408,6 +408,87 @@
     margin: 0 2px;
 }
 
+/* ===== Pass Geometry Detail ===== */
+.wxsat-pass-geometry {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-primary, #0d1117);
+    border-bottom: 1px solid var(--border-color, #2a3040);
+    font-family: 'Roboto Condensed', 'Arial Narrow', sans-serif;
+}
+
+.wxsat-geom-event {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 60px;
+}
+
+.wxsat-geom-event.wxsat-geom-tca {
+    color: var(--neon-green);
+}
+
+.wxsat-geom-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-dim, #666);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.wxsat-geom-tca .wxsat-geom-label {
+    color: var(--neon-green);
+}
+
+.wxsat-geom-time {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e0);
+}
+
+.wxsat-geom-tca .wxsat-geom-time {
+    color: var(--neon-green);
+}
+
+.wxsat-geom-az {
+    font-size: 10px;
+    color: var(--text-dim, #666);
+}
+
+.wxsat-geom-arrow {
+    font-size: 14px;
+    color: var(--text-dim, #444);
+}
+
+.wxsat-geom-meta {
+    font-size: 10px;
+    color: var(--text-dim, #666);
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid var(--border-color, #2a3040);
+    white-space: nowrap;
+}
+
+/* ===== Countdown Pulse Animation ===== */
+.wxsat-countdown-box.imminent .wxsat-cd-value {
+    animation: wxsat-count-pulse 1s ease-in-out infinite;
+    color: var(--accent-yellow);
+}
+
+.wxsat-countdown-box.active .wxsat-cd-value {
+    animation: wxsat-count-pulse 1s ease-in-out infinite;
+    color: var(--neon-green);
+}
+
+@keyframes wxsat-count-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.8; }
+}
+
 /* ===== Pass Predictions Panel ===== */
 .wxsat-passes-panel {
     flex: 0 0 280px;

@@ -751,7 +751,7 @@ const WeatherSat = (function() {
         }
 
         try {
-            const url = `/weather-sat/passes?latitude=${storedLat}&longitude=${storedLon}&hours=24&min_elevation=15&trajectory=true&ground_track=true`;
+            const url = `/weather-sat/passes?latitude=${storedLat}&longitude=${storedLon}&hours=48&min_elevation=5&trajectory=true&ground_track=true`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -815,6 +815,42 @@ const WeatherSat = (function() {
         // Update polar panel subtitle
         const polarSat = document.getElementById('wxsatPolarSat');
         if (polarSat) polarSat.textContent = `${pass.name} ${pass.maxEl}\u00b0`;
+
+        // Update pass geometry detail panel
+        updatePassGeometry(pass);
+    }
+
+    /**
+     * Update the AOS/TCA/LOS pass geometry detail panel.
+     */
+    function updatePassGeometry(pass) {
+        const panel = document.getElementById('wxsatPassGeometry');
+        if (!panel) return;
+
+        if (!pass) {
+            panel.style.display = 'none';
+            return;
+        }
+        panel.style.display = 'flex';
+
+        const aosTime = document.getElementById('wxsatGeomAosTime');
+        const aosAz = document.getElementById('wxsatGeomAosAz');
+        const tcaEl = document.getElementById('wxsatGeomTcaEl');
+        const tcaAz = document.getElementById('wxsatGeomTcaAz');
+        const losTime = document.getElementById('wxsatGeomLosTime');
+        const losAz = document.getElementById('wxsatGeomLosAz');
+        const meta = document.getElementById('wxsatGeomMeta');
+
+        const tzLabel = getTZLabel();
+        if (aosTime) aosTime.textContent = formatShortTime(pass.startTimeISO) + tzLabel;
+        if (aosAz) aosAz.textContent = `${Math.round(pass.riseAz || 0)}\u00b0 ${azToDir(pass.riseAz)}`;
+        if (tcaEl) tcaEl.textContent = `${pass.maxEl}\u00b0 el`;
+        if (tcaAz) tcaAz.textContent = `${Math.round(pass.maxElAz || pass.tcaAz || 0)}\u00b0 ${azToDir(pass.maxElAz || pass.tcaAz)}`;
+        if (losTime) losTime.textContent = formatShortTime(pass.endTimeISO) + tzLabel;
+        if (losAz) losAz.textContent = `${Math.round(pass.setAz || 0)}\u00b0 ${azToDir(pass.setAz)}`;
+
+        const durMin = Math.round((pass.duration || 0) / 60);
+        if (meta) meta.textContent = `${durMin} min / ${pass.quality}`;
     }
 
     /**
@@ -829,12 +865,28 @@ const WeatherSat = (function() {
         if (!container) return;
 
         if (passList.length === 0) {
-            const hasLocation = localStorage.getItem('observerLat') !== null;
+            const hasLocation = localStorage.getItem('observerLat') !== null ||
+                (window.ObserverLocation && ObserverLocation.isSharedEnabled() && ObserverLocation.getShared()?.lat);
             container.innerHTML = `
                 <div class="wxsat-gallery-empty">
-                    <p>${hasLocation ? 'No passes in next 24h' : 'Set location to see pass predictions'}</p>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 32px; height: 32px; margin-bottom: 8px; opacity: 0.3;">
+                        ${hasLocation
+                            ? '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'
+                            : '<circle cx="12" cy="12" r="10"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/>'}
+                    </svg>
+                    <p style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">
+                        ${hasLocation ? 'No passes in next 24 hours' : 'Set your location'}
+                    </p>
+                    <p style="font-size: 11px; margin-top: 4px;">
+                        ${hasLocation
+                            ? 'All Meteor passes may be below the minimum elevation. Try again later.'
+                            : 'Enter lat/lon in the strip bar above or click GPS to load pass predictions'}
+                    </p>
                 </div>
             `;
+            // Hide geometry panel when no passes
+            const geom = document.getElementById('wxsatPassGeometry');
+            if (geom) geom.style.display = 'none';
             return;
         }
 
@@ -866,6 +918,10 @@ const WeatherSat = (function() {
             const riseDir = azToDir(pass.riseAz);
             const setDir = azToDir(pass.setAz);
             const bestBadge = isBest ? '<span class="wxsat-pass-best-badge">BEST</span>' : '';
+            const durMin = Math.round((pass.duration || 0) / 60);
+            const aosStr = formatShortTime(pass.startTimeISO);
+            const losStr = formatShortTime(pass.endTimeISO);
+            const tzLabel = getTZLabel();
 
             return `
                 <div class="wxsat-pass-card${isSelected ? ' selected' : ''}" onclick="WeatherSat.selectPass(${idx})">
@@ -874,13 +930,13 @@ const WeatherSat = (function() {
                         <span class="wxsat-pass-mode ${modeClass}">${escapeHtml(pass.mode)}</span>
                     </div>
                     <div class="wxsat-pass-details">
-                        <span class="wxsat-pass-detail-label">Time</span>
-                        <span class="wxsat-pass-detail-value">${escapeHtml(timeStr)}</span>
-                        <span class="wxsat-pass-detail-label">Max El</span>
-                        <span class="wxsat-pass-detail-value">${pass.maxEl}&deg;</span>
-                        <span class="wxsat-pass-detail-label">Duration</span>
-                        <span class="wxsat-pass-detail-value">${pass.duration} min</span>
-                        <span class="wxsat-pass-detail-label">Direction</span>
+                        <span class="wxsat-pass-detail-label">AOS</span>
+                        <span class="wxsat-pass-detail-value">${escapeHtml(aosStr)}${escapeHtml(tzLabel)} &middot; ${Math.round(pass.riseAz || 0)}&deg; ${riseDir}</span>
+                        <span class="wxsat-pass-detail-label">LOS</span>
+                        <span class="wxsat-pass-detail-value">${escapeHtml(losStr)}${escapeHtml(tzLabel)} &middot; ${Math.round(pass.setAz || 0)}&deg; ${setDir}</span>
+                        <span class="wxsat-pass-detail-label">Peak</span>
+                        <span class="wxsat-pass-detail-value">${pass.maxEl}&deg; el &middot; ${durMin} min</span>
+                        <span class="wxsat-pass-detail-label">Track</span>
                         <span class="wxsat-pass-detail-value">${riseDir} <span class="wxsat-dir-arrow">&rarr;</span> ${setDir}</span>
                     </div>
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
@@ -1456,10 +1512,11 @@ const WeatherSat = (function() {
                 detailEl.textContent = `ACTIVE - ${nextPass.maxEl}\u00b0 max el`;
             } else {
                 const bestPass = findBestPass(filtered);
+                const durMin = Math.round((nextPass.duration || 0) / 60);
                 const bestNote = bestPass && bestPass.startTimeISO !== nextPass.startTimeISO
                     ? ` | Best: ${bestPass.name} ${formatShortTime(bestPass.startTimeISO)}${getTZLabel()} (${bestPass.maxEl}\u00b0)`
                     : '';
-                detailEl.textContent = `${passTimeStr} / ${nextPass.maxEl}\u00b0 max el / ${nextPass.duration} min${bestNote}`;
+                detailEl.textContent = `${passTimeStr} / ${nextPass.maxEl}\u00b0 max el / ${durMin} min${bestNote}`;
             }
         }
 
@@ -1592,7 +1649,8 @@ const WeatherSat = (function() {
         if (bestEl) {
             if (best) {
                 const t = formatShortTime(best.startTimeISO) + getTZLabel();
-                bestEl.textContent = `Best: ${best.name} at ${t} (${best.maxEl}\u00b0 el, ${best.duration} min)`;
+                const bestDurMin = Math.round((best.duration || 0) / 60);
+                bestEl.textContent = `Best: ${best.name} at ${t} (${best.maxEl}\u00b0 el, ${bestDurMin} min)`;
             } else {
                 bestEl.textContent = 'No upcoming passes';
             }
@@ -2343,13 +2401,13 @@ const WeatherSat = (function() {
 
         const offsets = [25, 95, 200, 340, 510, 720, 880, 1020];
         const elevations = [72, 45, 28, 63, 18, 55, 82, 35];
-        const durations = [14, 12, 8, 13, 6, 11, 15, 10];
+        const durations = [840, 720, 480, 780, 360, 660, 900, 600]; // seconds
         const riseAzs = [350, 15, 200, 310, 170, 40, 280, 90];
         const setAzs = [170, 195, 20, 130, 350, 220, 100, 270];
 
         offsets.forEach((offset, i) => {
             const start = new Date(now.getTime() + offset * 60000);
-            const end = new Date(start.getTime() + durations[i] * 60000);
+            const end = new Date(start.getTime() + durations[i] * 1000);
             const sat = demoSats[i % 2];
             const el = elevations[i];
             const quality = el >= 60 ? 'excellent' : el >= 30 ? 'good' : 'fair';
