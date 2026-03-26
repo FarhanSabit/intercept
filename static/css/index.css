@@ -3856,6 +3856,7 @@ header h1 .tagline {
 .wifi-zone.far .wifi-zone-count { color: var(--accent-red); }
 
 .wifi-radar-sweep {
+    transform-box: view-box;
     transform-origin: 105px 105px;
     animation: wifi-radar-rotate 3s linear infinite;
 }

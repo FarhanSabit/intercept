@@ -1497,7 +1497,7 @@ const WiFiMode = (function() {
         for (let i = 0; i < bssid.length; i++) {
             hash = (hash * 31 + bssid.charCodeAt(i)) & 0xffffffff;
         }
-        return (hash >>> 0) / 0xffffffff * 2 * Math.PI;
+        return (hash >>> 0) / 0x100000000 * 2 * Math.PI;
     }
 
     function renderRadar(networksList) {
