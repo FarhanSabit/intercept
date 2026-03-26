@@ -551,6 +551,10 @@
             }
             setInterval(updateNavUtcClock, 1000);
             updateNavUtcClock();
+            // React immediately when timezone/format changes in Settings
+            if (typeof InterceptTime !== 'undefined' && InterceptTime.onChange) {
+                InterceptTime.onChange(updateNavUtcClock);
+            }
         }
     })();
 </script>

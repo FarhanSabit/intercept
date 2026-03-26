@@ -90,6 +90,15 @@ def stream_vdl2_output(process: subprocess.Popen, is_text_mode: bool = False) ->
                     avlc = vdl2_inner.get('avlc') or {}
                     acars_payload = avlc.get('acars') or {}
 
+                    # Promote AVLC source address — this is the aircraft ICAO hex
+                    # Do this FIRST so even non-ACARS VDL2 frames can be correlated
+                    src = avlc.get('src') or {}
+                    src_addr = src.get('addr', '')
+                    src_type = src.get('type', '')
+                    if src_addr and src_type == 'Aircraft':
+                        data['icao'] = src_addr.upper()
+                        data['addr'] = src_addr.upper()
+
                     # Promote ACARS fields to top level so FlightCorrelator can match them
                     if acars_payload.get('flight'):
                         data['flight'] = acars_payload['flight']
@@ -100,13 +109,6 @@ def stream_vdl2_output(process: subprocess.Popen, is_text_mode: bool = False) ->
                         data['label'] = acars_payload['label']
                     if acars_payload.get('msg_text'):
                         data['text'] = acars_payload['msg_text']
-
-                    # Promote AVLC source address (often ICAO hex for aircraft)
-                    src_addr = (avlc.get('src') or {}).get('addr', '')
-                    src_type = (avlc.get('src') or {}).get('type', '')
-                    if src_addr and src_type == 'Aircraft':
-                        data['icao'] = src_addr
-                        data['addr'] = src_addr
 
                     # Enrich with translated ACARS label (consistent with ACARS route)
                     if acars_payload.get('label'):

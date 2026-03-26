@@ -22,6 +22,7 @@
         window.INTERCEPT_DEFAULT_LAT = {{ default_latitude | tojson }};
         window.INTERCEPT_DEFAULT_LON = {{ default_longitude | tojson }};
     </script>
+    <script src="{{ url_for('static', filename='js/core/utils.js') }}"></script>
     <script defer src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/core/observer-location.js') }}"></script>
 </head>
@@ -5730,6 +5731,16 @@ sudo make install</code>
 
     <!-- Settings Modal -->
     {% include 'partials/settings-modal.html' %}
+    <script>
+    // Initialize timezone/format dropdowns from saved preferences
+    (function() {
+        if (typeof InterceptTime === 'undefined') return;
+        var tzSel = document.getElementById('globalTimezoneSelect');
+        var fmtSel = document.getElementById('globalTimeFormatSelect');
+        if (tzSel) tzSel.value = InterceptTime.getTimezone();
+        if (fmtSel) fmtSel.value = InterceptTime.getHour12() ? '12' : '24';
+    })();
+    </script>
 
     <!-- Help Modal -->
     {% include 'partials/help-modal.html' %}
