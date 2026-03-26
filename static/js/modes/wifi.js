@@ -1176,7 +1176,7 @@ const WiFiMode = (function() {
                          : sec.includes('wpa3')            ? 'wpa3'
                          : sec.includes('wpa')             ? 'wpa2'
                          : sec.includes('wep')             ? 'wep'
-                         : 'wpa2';
+                         : 'unknown';
 
         // Threat class (left border)
         const threatClass = badgeClass === 'open' ? 'threat-open'
@@ -1185,7 +1185,7 @@ const WiFiMode = (function() {
 
         // Signal bar width + class
         const pct = rssi != null ? Math.max(0, Math.min(100, (rssi + 100) / 80 * 100)) : 0;
-        const fillClass = rssi > -55 ? 'strong' : rssi > -70 ? 'medium' : 'weak';
+        const fillClass = rssi == null ? 'weak' : rssi > -55 ? 'strong' : rssi > -70 ? 'medium' : 'weak';
 
         const displayName = escapeHtml(network.display_name || network.essid || '[Hidden]');
         const isHidden = network.is_hidden;
@@ -1196,7 +1196,7 @@ const WiFiMode = (function() {
                  data-bssid="${escapeHtml(network.bssid)}"
                  data-band="${escapeHtml(network.band || '')}"
                  data-security="${escapeHtml(security)}"
-                 onclick="WiFiMode.selectNetwork('${escapeHtml(network.bssid)}')">
+                 onclick="WiFiMode.selectNetwork(this.dataset.bssid)">
                 <div class="row-top">
                     <span class="row-ssid${isHidden ? ' hidden-net' : ''}">${displayName}</span>
                     <div class="row-badges">

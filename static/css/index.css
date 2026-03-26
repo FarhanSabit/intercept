@@ -3722,6 +3722,7 @@ header h1 .tagline {
 .badge.wpa3        { color: var(--accent-cyan);   background: var(--accent-cyan-dim);  border-color: var(--accent-cyan); }
 .badge.wep         { color: var(--accent-orange); background: var(--accent-amber-dim); border-color: var(--accent-orange); }
 .badge.hidden-tag  { color: var(--text-dim);      background: transparent;             border-color: var(--border-color); font-size: 8px; }
+.badge.unknown     { color: var(--text-dim);      background: transparent;             border-color: var(--border-color); }
 
 .row-bottom {
     display: flex;
