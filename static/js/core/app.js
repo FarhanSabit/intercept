@@ -465,7 +465,11 @@ function initApp() {
     // Start clock and init time settings
     initTimeSettings();
     updateHeaderClock();
+    window._navClockStarted = true;  // Prevent nav.html from starting a duplicate interval
     setInterval(updateHeaderClock, 1000);
+    if (typeof InterceptTime !== 'undefined' && InterceptTime.onChange) {
+        InterceptTime.onChange(updateHeaderClock);
+    }
 
     // Load bias-T setting
     loadBiasTSetting();
