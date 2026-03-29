@@ -4845,6 +4845,41 @@ header h1 .tagline {
     font-weight: 600;
 }
 
+/* Bluetooth scan indicator (header) */
+.bt-scan-indicator {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+}
+
+.bt-scan-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    animation: bt-scan-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes bt-scan-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+.bt-scan-text {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+}
+
+.bt-scan-text.active {
+    color: var(--accent-cyan);
+    font-weight: 600;
+}
+
 .bt-list-summary {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4940,40 +4975,79 @@ header h1 .tagline {
     border-color: var(--accent-cyan);
 }
 
-/* Bluetooth Device Filters */
-.bt-device-filters {
+/* Bluetooth controls row: sort + filter combined */
+.bt-controls-row {
     display: flex;
-    gap: 6px;
-    padding: 8px 12px;
+    align-items: stretch;
     border-bottom: 1px solid var(--border-color);
-    flex-wrap: wrap;
-    flex-shrink: 0;
     background: var(--bg-primary);
+    flex-shrink: 0;
     position: sticky;
     top: 44px;
     z-index: 3;
 }
 
+.bt-sort-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 5px 10px;
+    border-right: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.bt-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 8px;
+    flex-wrap: wrap;
+}
+
+.bt-sort-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 4px;
+}
+
+.bt-sort-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: color 0.15s;
+}
+
+.bt-sort-btn:hover { color: var(--text-primary); }
+.bt-sort-btn.active { color: var(--accent-cyan); background: rgba(74,163,255,0.08); }
+
 .bt-filter-btn {
-    padding: 5px 12px;
-    font-size: 11px;
-    background: var(--bg-tertiary);
+    padding: 3px 8px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    background: none;
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: 3px;
     color: var(--text-dim);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s;
 }
 
 .bt-filter-btn:hover {
-    background: var(--bg-secondary);
     color: var(--text-primary);
+    border-color: var(--border-light);
 }
 
 .bt-filter-btn.active {
-    background: var(--accent-purple);
-    border-color: var(--accent-purple);
-    color: var(--text-inverse);
+    color: var(--accent-cyan);
+    border-color: rgba(74,163,255,0.4);
+    background: rgba(74,163,255,0.08);
 }
 
 .bt-tracker-item {

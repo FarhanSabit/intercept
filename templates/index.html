@@ -1186,6 +1186,10 @@
                         <div class="wifi-device-list-header">
                             <h5>Bluetooth Devices</h5>
                             <span class="device-count">(<span id="btDeviceListCount">0</span>)</span>
+                            <div class="bt-scan-indicator" id="btScanIndicator">
+                                <span class="bt-scan-dot" style="display:none;"></span>
+                                <span class="bt-scan-text">IDLE</span>
+                            </div>
                         </div>
                         <div class="bt-list-summary" id="btListSummary">
                             <div class="bt-summary-item">
@@ -1225,15 +1229,24 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="bt-controls-row">
+                            <div class="bt-sort-group" id="btSortGroup">
+                                <span class="bt-sort-label">Sort</span>
+                                <button class="bt-sort-btn active" data-sort="rssi">Signal</button>
+                                <button class="bt-sort-btn" data-sort="name">Name</button>
+                                <button class="bt-sort-btn" data-sort="seen">Seen</button>
+                                <button class="bt-sort-btn" data-sort="distance">Dist</button>
+                            </div>
+                            <div class="bt-filter-group" id="btFilterGroup">
+                                <button class="bt-filter-btn active" data-filter="all">All</button>
+                                <button class="bt-filter-btn" data-filter="new">New</button>
+                                <button class="bt-filter-btn" data-filter="named">Named</button>
+                                <button class="bt-filter-btn" data-filter="strong">Strong</button>
+                                <button class="bt-filter-btn" data-filter="trackers">Trackers</button>
+                            </div>
+                        </div>
                         <div class="bt-device-toolbar">
                             <input type="search" id="btDeviceSearch" class="bt-device-search" placeholder="Filter by name, MAC, manufacturer...">
-                        </div>
-                        <div class="bt-device-filters" id="btDeviceFilters">
-                            <button class="bt-filter-btn active" data-filter="all">All</button>
-                            <button class="bt-filter-btn" data-filter="new">New</button>
-                            <button class="bt-filter-btn" data-filter="named">Named</button>
-                            <button class="bt-filter-btn" data-filter="strong">Strong</button>
-                            <button class="bt-filter-btn" data-filter="trackers">Trackers</button>
                         </div>
                         <div class="wifi-device-list-content" id="btDeviceListContent">
                             <div class="app-collection-state is-empty">Start scanning to discover Bluetooth devices</div>
