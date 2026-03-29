@@ -73,6 +73,9 @@ const ProximityRadar = (function() {
                             <feMergeNode in="SourceGraphic"/>
                         </feMerge>
                     </filter>
+                    <clipPath id="radarClip">
+                        <circle cx="${center}" cy="${center}" r="${center - CONFIG.padding}"/>
+                    </clipPath>
                 </defs>
 
                 <!-- Background gradient -->
@@ -94,10 +97,15 @@ const ProximityRadar = (function() {
                     }).join('')}
                 </g>
 
-                <!-- Sweep line (animated) -->
-                <line class="radar-sweep" x1="${center}" y1="${center}"
-                      x2="${center}" y2="${CONFIG.padding}"
-                      stroke="rgba(0, 212, 255, 0.5)" stroke-width="1" />
+                <!-- CSS-animated sweep group: trailing arcs + sweep line -->
+                <g class="bt-radar-sweep" clip-path="url(#radarClip)">
+                    <path d="M${center},${center} L${center},${CONFIG.padding} A${center - CONFIG.padding},${center - CONFIG.padding} 0 0,1 ${center + (center - CONFIG.padding)},${center} Z"
+                          fill="#00b4d8" opacity="0.035"/>
+                    <path d="M${center},${center} L${center},${CONFIG.padding} A${center - CONFIG.padding},${center - CONFIG.padding} 0 0,1 ${Math.round(center + (center - CONFIG.padding) * Math.sin(Math.PI / 3))},${Math.round(center + (center - CONFIG.padding) * (1 - Math.cos(Math.PI / 3)))} Z"
+                          fill="#00b4d8" opacity="0.07"/>
+                    <line x1="${center}" y1="${center}" x2="${center}" y2="${CONFIG.padding}"
+                          stroke="#00b4d8" stroke-width="1.5" opacity="0.75"/>
+                </g>
 
                 <!-- Center point -->
                 <circle cx="${center}" cy="${center}" r="${CONFIG.centerRadius}"
@@ -129,39 +137,6 @@ const ProximityRadar = (function() {
             }
         });
 
-        // Add sweep animation
-        animateSweep();
-    }
-
-    /**
-     * Animate the radar sweep line
-     */
-    function animateSweep() {
-        const sweepLine = svg.querySelector('.radar-sweep');
-        if (!sweepLine) return;
-
-        let angle = 0;
-        const center = CONFIG.size / 2;
-
-        function rotate() {
-            if (isPaused) {
-                requestAnimationFrame(rotate);
-                return;
-            }
-
-            angle = (angle + 1) % 360;
-            const rad = (angle * Math.PI) / 180;
-            const radius = center - CONFIG.padding;
-            const x2 = center + Math.sin(rad) * radius;
-            const y2 = center - Math.cos(rad) * radius;
-
-            sweepLine.setAttribute('x2', x2);
-            sweepLine.setAttribute('y2', y2);
-
-            requestAnimationFrame(rotate);
-        }
-
-        requestAnimationFrame(rotate);
     }
 
     /**
@@ -493,6 +468,8 @@ const ProximityRadar = (function() {
      */
     function setPaused(paused) {
         isPaused = paused;
+        const sweep = svg?.querySelector('.bt-radar-sweep');
+        if (sweep) sweep.style.animationPlayState = paused ? 'paused' : 'running';
     }
 
     /**
