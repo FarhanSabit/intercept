@@ -908,6 +908,7 @@ def health_check() -> Response:
         },
         'database': db_ok,
         'sdr_devices': sdr_count,
+        'sdr_claims': get_sdr_device_status(),
         'rate_limiting': _has_limiter,
         'processes': {
             'pager': current_process is not None and (current_process.poll() is None if current_process else False),
