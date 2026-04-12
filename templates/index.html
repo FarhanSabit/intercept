@@ -5341,8 +5341,11 @@
                         // Clear existing output
                         output.innerHTML = '<div class="placeholder signal-empty-state" style="display: none;"></div>';
                     } else {
-                        alert('Error: ' + data.message);
+                        showInfo('Error: ' + (data.message || 'Failed to start sensor'));
                     }
+                })
+                .catch(err => {
+                    showInfo('Error starting sensor: ' + err.message);
                 });
         }
 
@@ -5580,8 +5583,8 @@
 
             // Keep list manageable
             const cards = output.querySelectorAll('.signal-card');
-            while (cards.length > 100) {
-                output.removeChild(output.lastChild);
+            for (let i = cards.length - 1; i >= 100; i--) {
+                cards[i].remove();
             }
         }
 
@@ -5864,14 +5867,8 @@
 
             // Limit to max 50 unique meters (cards won't pile up since we update in place)
             const cards = output.querySelectorAll('.signal-card.meter-aggregated');
-            while (cards.length > 50) {
-                // Remove oldest card (last one)
-                const oldestCard = output.querySelector('.signal-card.meter-aggregated:last-of-type');
-                if (oldestCard) {
-                    output.removeChild(oldestCard);
-                } else {
-                    break;
-                }
+            for (let i = cards.length - 1; i >= 50; i--) {
+                cards[i].remove();
             }
         }
 
@@ -7055,8 +7052,8 @@
 
             // Limit messages displayed (keep placeholder/empty-state)
             const cards = output.querySelectorAll('.signal-card');
-            while (cards.length > 100) {
-                output.removeChild(cards[cards.length - 1]);
+            for (let i = cards.length - 1; i >= 100; i--) {
+                cards[i].remove();
             }
         }
 
@@ -7420,7 +7417,7 @@
 
             // Limit displayed devices
             while (content.children.length > 50) {
-                content.removeChild(content.lastChild);
+                content.lastElementChild.remove();
             }
         }
 
@@ -10707,7 +10704,7 @@
 
             // Keep log manageable
             while (logEl.children.length > 100) {
-                logEl.removeChild(logEl.lastChild);
+                logEl.lastElementChild.remove();
             }
 
             // Update map if position data
