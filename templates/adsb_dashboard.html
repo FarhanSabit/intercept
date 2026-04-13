@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/variables.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/core/map-utils.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}?v={{ version }}&r=maptheme17">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/help-modal.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/adsb_dashboard.css') }}">
@@ -419,6 +420,7 @@
         // STATE
         // ============================================
         let radarMap = null;
+        let mapOverlays = null;
         let aircraft = {};
         let markers = {};
         let selectedIcao = null;
@@ -640,7 +642,6 @@
             return { lat: defaultLat, lon: defaultLon };
         })();
         let rangeRingsLayer = null;
-        let observerMarker = null;
 
         // GPS state
         let gpsConnected = false;
@@ -1514,16 +1515,10 @@ ACARS: ${r.statistics.acarsMessages} messages`;
                 rangeRingsLayer.addLayer(label);
             });
 
-            // Observer marker
-            if (observerMarker) radarMap.removeLayer(observerMarker);
-            observerMarker = L.marker([observerLocation.lat, observerLocation.lon], {
-                icon: L.divIcon({
-                    className: 'observer-marker',
-                    html: '<div style="width: 12px; height: 12px; background: #ff0; border: 2px solid #000; border-radius: 50%; box-shadow: 0 0 10px #ff0;"></div>',
-                    iconSize: [12, 12],
-                    iconAnchor: [6, 6]
-                })
-            }).bindPopup('Your Location').addTo(radarMap);
+            // Observer reticle — update position via MapUtils handle
+            if (mapOverlays) {
+                mapOverlays.updateReticle([observerLocation.lat, observerLocation.lon]);
+            }
 
             rangeRingsLayer.addTo(radarMap);
         }
@@ -2222,112 +2217,39 @@ sudo make install</code>
                 now.toISOString().substring(11, 19) + ' UTC';
         }
 
-        function createFallbackGridLayer() {
-            const layer = L.gridLayer({
-                tileSize: 256,
-                updateWhenIdle: true,
-                attribution: 'Local fallback grid'
-            });
-            layer.createTile = function(coords) {
-                const tile = document.createElement('canvas');
-                tile.width = 256;
-                tile.height = 256;
-                const ctx = tile.getContext('2d');
-
-                ctx.fillStyle = '#08121c';
-                ctx.fillRect(0, 0, 256, 256);
-
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.14)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(256, 0);
-                ctx.moveTo(0, 0);
-                ctx.lineTo(0, 256);
-                ctx.stroke();
-
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.08)';
-                ctx.beginPath();
-                ctx.moveTo(128, 0);
-                ctx.lineTo(128, 256);
-                ctx.moveTo(0, 128);
-                ctx.lineTo(256, 128);
-                ctx.stroke();
-
-                ctx.fillStyle = 'rgba(160, 220, 255, 0.28)';
-                ctx.font = '11px "JetBrains Mono", monospace';
-                ctx.fillText(`Z${coords.z} X${coords.x} Y${coords.y}`, 12, 22);
-
-                return tile;
-            };
-            return layer;
-        }
-
-        async function upgradeRadarTilesFromSettings(fallbackTiles) {
-            if (typeof Settings === 'undefined') return;
-
-            try {
-                await Settings.init();
-                if (!radarMap) return;
-
-                const configuredLayer = Settings.createTileLayer();
-                let tileLoaded = false;
-
-                configuredLayer.once('load', () => {
-                    tileLoaded = true;
-                    if (radarMap && fallbackTiles && radarMap.hasLayer(fallbackTiles)) {
-                        radarMap.removeLayer(fallbackTiles);
-                    }
-                });
-
-                configuredLayer.on('tileerror', () => {
-                    if (!tileLoaded) {
-                        console.warn('ADS-B tile layer failed to load, keeping fallback grid');
-                    }
-                });
-
-                configuredLayer.addTo(radarMap);
-                Settings.registerMap(radarMap);
-            } catch (e) {
-                console.warn('ADS-B: Settings/tile upgrade failed, using fallback grid:', e);
-            }
-        }
-
         async function initMap() {
-            // Guard against double initialization (e.g. bfcache restore)
             const container = document.getElementById('radarMap');
             if (!container || container._leaflet_id) return;
 
-            radarMap = L.map('radarMap', {
+            radarMap = MapUtils.init('radarMap', {
                 center: [observerLocation.lat, observerLocation.lon],
                 zoom: 7,
                 minZoom: 3,
-                maxZoom: 15
+                maxZoom: 15,
             });
-
-            // Use settings manager for tile layer (allows runtime changes)
+            if (!radarMap) return;
             window.radarMap = radarMap;
 
-            // Use a zero-network fallback so dashboard navigation stays fast even
-            // when internet map providers are slow or unreachable.
-            const fallbackTiles = createFallbackGridLayer().addTo(radarMap);
+            // Fix map size after init
+            setTimeout(() => { if (radarMap) radarMap.invalidateSize(); }, 200);
+            setTimeout(() => { if (radarMap) radarMap.invalidateSize(); }, 500);
 
-            // Draw range rings after map is ready
-            setTimeout(() => drawRangeRings(), 100);
-
-            // Fix map size on mobile after initialization
-            setTimeout(() => {
-                if (radarMap) radarMap.invalidateSize();
-            }, 200);
-
-            // Additional invalidateSize to ensure all tiles load
-            setTimeout(() => {
-                if (radarMap) radarMap.invalidateSize();
-            }, 500);
-
-            // Upgrade tiles via Settings in the background without tearing down
-            // the local fallback grid until a real tile layer actually loads.
-            upgradeRadarTilesFromSettings(fallbackTiles);
+            // Tactical overlays: range rings + observer reticle + HUD panels
+            const intervals = [maxRange * 0.25, maxRange * 0.5, maxRange * 0.75, maxRange]
+                .map(n => Math.round(n));
+            mapOverlays = MapUtils.addTacticalOverlays(radarMap, {
+                rangeRings: {
+                    center: [observerLocation.lat, observerLocation.lon],
+                    intervals,
+                    unit: 'nm',
+                },
+                observerReticle: { latlng: [observerLocation.lat, observerLocation.lon] },
+                hudPanels: {
+                    modeName: 'ADS-B',
+                    getContactCount: () => Object.keys(aircraft).length,
+                },
+                scaleBar: true,
+            });
         }
 
         // Handle window resize for map (especially important on mobile)
@@ -2941,6 +2863,8 @@ sudo make install</code>
                 ...data,
                 lastSeen: Date.now()
             };
+
+            if (mapOverlays) mapOverlays.updateCount(Object.keys(aircraft).length);
 
             checkAndAlertAircraft(icao, aircraft[icao]);
             updateStatistics(icao, aircraft[icao]);
@@ -5767,6 +5691,7 @@ sudo make install</code>
     <script src="{{ url_for('static', filename='js/core/cheat-sheets.js') }}"></script>
     {% include 'partials/nav-utility-modals.html' %}
     <script src="{{ url_for('static', filename='js/core/settings-manager.js') }}?v={{ version }}&r=maptheme17"></script>
+    <script src="{{ url_for('static', filename='js/map-utils.js') }}"></script>
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             if (typeof VoiceAlerts !== 'undefined') VoiceAlerts.init();
