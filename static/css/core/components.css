@@ -177,7 +177,7 @@
     border: 1px solid rgba(74, 163, 255, 0.24);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: var(--shadow-sm), inset 0 0 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.04);
     backdrop-filter: blur(5px);
 }
 
@@ -1169,4 +1169,19 @@ textarea:focus {
 .list-overflow-indicator .btn {
     font-size: var(--text-xs);
     padding: var(--space-1) var(--space-2);
+}
+
+/* Visuals Container Base Styles */
+.visuals-container {
+    position: relative;
+}
+
+.visuals-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--scanline);
+    pointer-events: none;
+    z-index: 1;
+    border-radius: inherit;
 }
