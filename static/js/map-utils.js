@@ -57,7 +57,7 @@ const MapUtils = {
         if (typeof Settings === 'undefined') return;
         try {
             await Settings.init();
-            if (!map || !map.getContainer || !map.getContainer()) return;
+            if (!map || map._removed) return;
             const layer = Settings.createTileLayer();
             let loaded = false;
             layer.once('load', () => {
@@ -186,22 +186,35 @@ const MapUtils = {
         };
         if (options.graticule) {
             buildGraticule();
-            map.on('zoomend moveend', buildGraticule);
+            map.on('zoomend', buildGraticule);
             cleanupFns.push(() => {
-                map.off('zoomend moveend', buildGraticule);
+                map.off('zoomend', buildGraticule);
                 removeGraticule();
             });
         }
         handles.showGraticule = () => {
             buildGraticule();
-            map.on('zoomend moveend', buildGraticule);
+            map.on('zoomend', buildGraticule);
         };
         handles.hideGraticule = () => {
-            map.off('zoomend moveend', buildGraticule);
+            map.off('zoomend', buildGraticule);
             removeGraticule();
         };
 
         handles.removeAll = () => cleanupFns.forEach(fn => fn());
+
+        // Auto-cleanup when Leaflet map is removed
+        const autoCleanup = () => {
+            cleanupFns.forEach(fn => fn());
+            map.off('remove', autoCleanup);
+        };
+        map.on('remove', autoCleanup);
+        const originalRemoveAll = handles.removeAll;
+        handles.removeAll = () => {
+            map.off('remove', autoCleanup);
+            originalRemoveAll();
+        };
+
         return handles;
     },
 
@@ -227,8 +240,8 @@ const MapUtils = {
                 interactive: false,
             }).addTo(layer);
 
-            // Label at the top of each ring
-            const labelLat = center[0] + (dist * (unit === 'km' ? 0.009 : 0.0166));
+            // Label at accurate north point of ring (Leaflet handles earth curvature)
+            const labelLat = L.circle(center, { radius: meters }).getBounds().getNorth();
             L.marker([labelLat, center[1]], {
                 icon: L.divIcon({
                     className: 'map-range-label',
