@@ -10179,7 +10179,7 @@
             aprsMapOverlays = MapUtils.addTacticalOverlays(aprsMap, {
                 hudPanels: {
                     modeName: 'APRS',
-                    getContactCount: () => Object.keys(aprsStations).length,
+                    getContactCount: () => Object.keys(aprsMarkers).length,
                 },
                 scaleBar: true,
             });
@@ -10225,6 +10225,7 @@
                 } catch (_) {}
                 aprsMap = null;
                 window.aprsMap = null;
+                aprsMapOverlays = null;
             }
             aprsMarkers = {};
             aprsUserMarker = null;
