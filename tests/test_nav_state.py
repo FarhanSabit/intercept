@@ -21,5 +21,5 @@ def test_nav_groups_have_data_group_attributes(client):
     """Each nav group must have a data-group attribute for state keying."""
     resp = _logged_in_get(client, "/")
     html = resp.data.decode()
-    for group in ["signals", "tracking", "space", "wireless", "intel"]:
+    for group in ["signals", "tracking", "space", "wireless", "intel", "system"]:
         assert f'data-group="{group}"' in html, f"Missing data-group={group}"
