@@ -10,11 +10,11 @@
        ============================================ */
 
     /* Backgrounds - layered depth system */
-    --bg-primary: #0b1118;
-    --bg-secondary: #101823;
-    --bg-tertiary: #151f2b;
-    --bg-card: #121a25;
-    --bg-elevated: #1b2734;
+    --bg-primary: #07090e;
+    --bg-secondary: #0b1018;
+    --bg-tertiary: #101520;
+    --bg-card: #0d1219;
+    --bg-elevated: #161d28;
     --bg-overlay: rgba(8, 13, 20, 0.75);
     --surface-glass: rgba(16, 25, 37, 0.82);
     --surface-panel-gradient: linear-gradient(160deg, rgba(20, 32, 47, 0.94) 0%, rgba(11, 18, 27, 0.96) 100%);
@@ -40,6 +40,7 @@
     --accent-orange-dim: rgba(214, 168, 94, 0.16);
     --accent-amber: #d6a85e;
     --accent-amber-dim: rgba(214, 168, 94, 0.18);
+    --accent-cyan-glow: rgba(74, 163, 255, 0.12);
     --accent-yellow: #e1c26b;
     --accent-purple: #8f7bd6;
 
@@ -79,6 +80,15 @@
     --grid-line: rgba(74, 163, 255, 0.1);
     --grid-dot: rgba(255, 255, 255, 0.03);
     --noise-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='40'%20height='40'%20viewBox='0%200%2040%2040'%3E%3Cg%20fill='%23ffffff'%20fill-opacity='0.05'%3E%3Ccircle%20cx='3'%20cy='5'%20r='1'/%3E%3Ccircle%20cx='11'%20cy='9'%20r='1'/%3E%3Ccircle%20cx='18'%20cy='3'%20r='1'/%3E%3Ccircle%20cx='26'%20cy='12'%20r='1'/%3E%3Ccircle%20cx='34'%20cy='6'%20r='1'/%3E%3Ccircle%20cx='7'%20cy='19'%20r='1'/%3E%3Ccircle%20cx='15'%20cy='24'%20r='1'/%3E%3Ccircle%20cx='28'%20cy='22'%20r='1'/%3E%3Ccircle%20cx='36'%20cy='18'%20r='1'/%3E%3Ccircle%20cx='5'%20cy='33'%20r='1'/%3E%3Ccircle%20cx='19'%20cy='32'%20r='1'/%3E%3Ccircle%20cx='31'%20cy='34'%20r='1'/%3E%3C/g%3E%3C/svg%3E");
+
+    /* Scanline overlay texture */
+    --scanline: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.04) 2px,
+        rgba(0, 0, 0, 0.04) 4px
+    );
 
     /* ============================================
        SPACING SCALE
@@ -235,6 +245,9 @@
     --grid-line: rgba(31, 95, 168, 0.14);
     --grid-dot: rgba(12, 18, 24, 0.06);
     --noise-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='40'%20height='40'%20viewBox='0%200%2040%2040'%3E%3Cg%20fill='%23000000'%20fill-opacity='0.05'%3E%3Ccircle%20cx='3'%20cy='5'%20r='1'/%3E%3Ccircle%20cx='11'%20cy='9'%20r='1'/%3E%3Ccircle%20cx='18'%20cy='3'%20r='1'/%3E%3Ccircle%20cx='26'%20cy='12'%20r='1'/%3E%3Ccircle%20cx='34'%20cy='6'%20r='1'/%3E%3Ccircle%20cx='7'%20cy='19'%20r='1'/%3E%3Ccircle%20cx='15'%20cy='24'%20r='1'/%3E%3Ccircle%20cx='28'%20cy='22'%20r='1'/%3E%3Ccircle%20cx='36'%20cy='18'%20r='1'/%3E%3Ccircle%20cx='5'%20cy='33'%20r='1'/%3E%3Ccircle%20cx='19'%20cy='32'%20r='1'/%3E%3Ccircle%20cx='31'%20cy='34'%20r='1'/%3E%3C/g%3E%3C/svg%3E");
+
+    --accent-cyan-glow: rgba(31, 95, 168, 0.08);
+    --scanline: none;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
