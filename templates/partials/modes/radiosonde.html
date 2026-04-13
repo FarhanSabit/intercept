@@ -278,6 +278,7 @@
 
     // Map management
     let radiosondeMap = null;
+    let radiosondeMapOverlays = null;
     let radiosondeMarkers = new Map();
     let radiosondeTracks = new Map();
     let radiosondeTrackPoints = new Map();
@@ -295,16 +296,23 @@
         }
         const hasLocation = radiosondeStationLocation.lat !== 0 || radiosondeStationLocation.lon !== 0;
 
-        radiosondeMap = L.map('radiosondeMapContainer', {
-            center: hasLocation ? [radiosondeStationLocation.lat, radiosondeStationLocation.lon] : [40, -95],
-            zoom: hasLocation ? 7 : 4,
-            zoomControl: true,
-        });
+        const observerLocation = hasLocation
+            ? { lat: radiosondeStationLocation.lat, lon: radiosondeStationLocation.lon }
+            : { lat: 40, lon: -95 };
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
+        radiosondeMap = MapUtils.init('radiosondeMapContainer', {
+            center: [observerLocation.lat, observerLocation.lon],
+            zoom: hasLocation ? 7 : 4,
+            minZoom: 2,
             maxZoom: 18,
-        }).addTo(radiosondeMap);
+        });
+        if (radiosondeMap) {
+            window.radiosondeMap = radiosondeMap;
+            radiosondeMapOverlays = MapUtils.addTacticalOverlays(radiosondeMap, {
+                hudPanels: { modeName: 'RADIOSONDE', getContactCount: () => 0 },
+                scaleBar: true,
+            });
+        }
 
         // Add station marker if we have a location
         if (hasLocation) {

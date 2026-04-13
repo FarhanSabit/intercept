@@ -62,3 +62,16 @@ def test_index_includes_map_utils(client):
     html = resp.data.decode()
     assert "map-utils.js" in html
     assert "MapUtils.init" in html
+
+
+def test_radiosonde_mode_uses_map_utils(client):
+    """Main SPA index (which includes radiosonde partial) uses MapUtils for radiosonde map."""
+    with client.session_transaction() as sess:
+        sess["logged_in"] = True
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    # Radiosonde map init in partial should call MapUtils.init, not bare L.tileLayer
+    assert "radiosondeMap" in html
+    # The bare cartocdn URL that was previously hardcoded should be gone
+    assert "basemaps.cartocdn.com/dark_all" not in html or html.count("basemaps.cartocdn.com/dark_all") == 0
