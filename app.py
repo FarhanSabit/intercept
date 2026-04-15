@@ -58,16 +58,19 @@ from utils.sdr import SDRFactory
 try:
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
+
     _has_limiter = True
 except ImportError:
     _has_limiter = False
 try:
     from flask_compress import Compress
+
     _has_compress = True
 except ImportError:
     _has_compress = False
 try:
     from flask_wtf.csrf import CSRFProtect
+
     _has_csrf = True
 except ImportError:
     _has_csrf = False
@@ -76,16 +79,18 @@ import contextlib
 import time as _time
 
 _app_start_time = _time.time()
-logger = logging.getLogger('intercept.database')
+logger = logging.getLogger("intercept.database")
 
 # Create Flask app
 app = Flask(__name__)
+
+
 def _load_or_generate_secret_key():
     """Load secret key from env var or instance file, generating if needed."""
-    env_key = os.environ.get('INTERCEPT_SECRET_KEY')
+    env_key = os.environ.get("INTERCEPT_SECRET_KEY")
     if env_key:
         return env_key
-    key_path = Path('instance/secret.key')
+    key_path = Path("instance/secret.key")
     if key_path.exists():
         return key_path.read_text().strip()
     key_path.parent.mkdir(exist_ok=True)
@@ -93,15 +98,15 @@ def _load_or_generate_secret_key():
     key_path.write_text(key)
     return key
 
+
 app.secret_key = _load_or_generate_secret_key()
 
 # Set up HTTP compression (gzip/brotli for HTML, CSS, JS, JSON)
 if _has_compress:
     Compress(app)
 else:
-    logging.getLogger('intercept').warning(
-        "flask-compress not installed – HTTP compression disabled. "
-        "Install with: pip install flask-compress"
+    logging.getLogger("intercept").warning(
+        "flask-compress not installed – HTTP compression disabled. Install with: pip install flask-compress"
     )
 
 # Set up rate limiting
@@ -112,30 +117,33 @@ if _has_limiter:
         storage_uri="memory://",
     )
 else:
-    logging.getLogger('intercept').warning(
-        "flask-limiter not installed – rate limiting disabled. "
-        "Install with: pip install flask-limiter"
+    logging.getLogger("intercept").warning(
+        "flask-limiter not installed – rate limiting disabled. Install with: pip install flask-limiter"
     )
+
     class _NoopLimiter:
         """Stub so @limiter.limit() decorators are silently ignored."""
+
         def limit(self, *a, **kw):
             def decorator(f):
                 return f
+
             return decorator
+
     limiter = _NoopLimiter()
 
 # Set up CSRF protection
 if _has_csrf:
     csrf = CSRFProtect(app)
 else:
-    logging.getLogger('intercept').warning(
-        "flask-wtf not installed – CSRF protection disabled. "
-        "Install with: pip install flask-wtf"
+    logging.getLogger("intercept").warning(
+        "flask-wtf not installed – CSRF protection disabled. Install with: pip install flask-wtf"
     )
     csrf = None
 
 # Disable Werkzeug debugger PIN (not needed for local development tool)
-os.environ['WERKZEUG_DEBUG_PIN'] = 'off'
+os.environ["WERKZEUG_DEBUG_PIN"] = "off"
+
 
 # ============================================
 # ERROR HANDLERS
@@ -144,37 +152,40 @@ os.environ['WERKZEUG_DEBUG_PIN'] = 'off'
 def ratelimit_handler(e):
     logger.warning(f"Rate limit exceeded for IP: {request.remote_addr}")
     flash("Too many login attempts. Please wait one minute before trying again.", "error")
-    return render_template('login.html', version=VERSION), 429
+    return render_template("login.html", version=VERSION), 429
+
 
 # ============================================
 # SECURITY HEADERS
 # ============================================
 
+
 @app.after_request
 def add_security_headers(response):
     """Add security headers to all responses."""
     # Prevent MIME type sniffing
-    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers["X-Content-Type-Options"] = "nosniff"
     # Prevent clickjacking
-    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     # Enable XSS filter
-    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers["X-XSS-Protection"] = "1; mode=block"
     # Referrer policy
-    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     # Permissions policy (disable unnecessary features)
-    response.headers['Permissions-Policy'] = 'geolocation=(self), microphone=()'
+    response.headers["Permissions-Policy"] = "geolocation=(self), microphone=()"
     # Cache-Control for static assets
-    if request.path.startswith('/static/'):
-        if '/vendor/' in request.path:
-            response.headers['Cache-Control'] = 'public, max-age=604800'  # 7 days for vendored libs
+    if request.path.startswith("/static/"):
+        if "/vendor/" in request.path:
+            response.headers["Cache-Control"] = "public, max-age=604800"  # 7 days for vendored libs
         else:
-            response.headers['Cache-Control'] = 'public, max-age=86400'  # 24h for app assets
+            response.headers["Cache-Control"] = "public, max-age=86400"  # 24h for app assets
     return response
 
 
 # ============================================
 # CONTEXT PROCESSORS
 # ============================================
+
 
 @app.context_processor
 def inject_offline_settings():
@@ -183,23 +194,23 @@ def inject_offline_settings():
 
     # Privacy-first defaults: keep dashboard assets/fonts local to avoid
     # third-party tracker/storage defenses in strict browsers.
-    assets_source = str(get_setting('offline.assets_source', 'local') or 'local').lower()
-    fonts_source = str(get_setting('offline.fonts_source', 'local') or 'local').lower()
-    if assets_source not in ('local', 'cdn'):
-        assets_source = 'local'
-    if fonts_source not in ('local', 'cdn'):
-        fonts_source = 'local'
+    assets_source = str(get_setting("offline.assets_source", "local") or "local").lower()
+    fonts_source = str(get_setting("offline.fonts_source", "local") or "local").lower()
+    if assets_source not in ("local", "cdn"):
+        assets_source = "local"
+    if fonts_source not in ("local", "cdn"):
+        fonts_source = "local"
     # Force local delivery for core dashboard pages.
-    assets_source = 'local'
-    fonts_source = 'local'
+    assets_source = "local"
+    fonts_source = "local"
 
     return {
-        'offline_settings': {
-            'enabled': get_setting('offline.enabled', False),
-            'assets_source': assets_source,
-            'fonts_source': fonts_source,
-            'tile_provider': get_setting('offline.tile_provider', 'cartodb_dark_cyan'),
-            'tile_server_url': get_setting('offline.tile_server_url', '')
+        "offline_settings": {
+            "enabled": get_setting("offline.enabled", False),
+            "assets_source": assets_source,
+            "fonts_source": fonts_source,
+            "tile_provider": get_setting("offline.tile_provider", "cartodb_dark_cyan"),
+            "tile_server_url": get_setting("offline.tile_server_url", ""),
         }
     }
 
@@ -312,31 +323,31 @@ deauth_detector_lock = threading.Lock()
 
 # Logging settings
 logging_enabled = False
-log_file_path = 'pager_messages.log'
+log_file_path = "pager_messages.log"
 
 # WiFi state - using DataStore for automatic cleanup
 wifi_monitor_interface = None
-wifi_networks = DataStore(max_age_seconds=MAX_WIFI_NETWORK_AGE_SECONDS, name='wifi_networks')
-wifi_clients = DataStore(max_age_seconds=MAX_WIFI_NETWORK_AGE_SECONDS, name='wifi_clients')
+wifi_networks = DataStore(max_age_seconds=MAX_WIFI_NETWORK_AGE_SECONDS, name="wifi_networks")
+wifi_clients = DataStore(max_age_seconds=MAX_WIFI_NETWORK_AGE_SECONDS, name="wifi_clients")
 wifi_handshakes = []  # Captured handshakes (list, not auto-cleaned)
 
 # Bluetooth state - using DataStore for automatic cleanup
 bt_interface = None
-bt_devices = DataStore(max_age_seconds=MAX_BT_DEVICE_AGE_SECONDS, name='bt_devices')
-bt_beacons = DataStore(max_age_seconds=MAX_BT_DEVICE_AGE_SECONDS, name='bt_beacons')
-bt_services = {}     # MAC -> list of services (not auto-cleaned, user-requested)
+bt_devices = DataStore(max_age_seconds=MAX_BT_DEVICE_AGE_SECONDS, name="bt_devices")
+bt_beacons = DataStore(max_age_seconds=MAX_BT_DEVICE_AGE_SECONDS, name="bt_beacons")
+bt_services = {}  # MAC -> list of services (not auto-cleaned, user-requested)
 
 # Aircraft (ADS-B) state - using DataStore for automatic cleanup
-adsb_aircraft = DataStore(max_age_seconds=MAX_AIRCRAFT_AGE_SECONDS, name='adsb_aircraft')
+adsb_aircraft = DataStore(max_age_seconds=MAX_AIRCRAFT_AGE_SECONDS, name="adsb_aircraft")
 
 # Vessel (AIS) state - using DataStore for automatic cleanup
-ais_vessels = DataStore(max_age_seconds=MAX_VESSEL_AGE_SECONDS, name='ais_vessels')
+ais_vessels = DataStore(max_age_seconds=MAX_VESSEL_AGE_SECONDS, name="ais_vessels")
 
 # DSC (Digital Selective Calling) state - using DataStore for automatic cleanup
-dsc_messages = DataStore(max_age_seconds=MAX_DSC_MESSAGE_AGE_SECONDS, name='dsc_messages')
+dsc_messages = DataStore(max_age_seconds=MAX_DSC_MESSAGE_AGE_SECONDS, name="dsc_messages")
 
 # Deauth alerts - using DataStore for automatic cleanup
-deauth_alerts = DataStore(max_age_seconds=MAX_DEAUTH_ALERTS_AGE_SECONDS, name='deauth_alerts')
+deauth_alerts = DataStore(max_age_seconds=MAX_DEAUTH_ALERTS_AGE_SECONDS, name="deauth_alerts")
 
 # Satellite state
 satellite_passes = []  # Predicted satellite passes (not auto-cleaned, calculated)
@@ -360,7 +371,7 @@ sdr_device_registry: dict[str, str] = {}
 sdr_device_registry_lock = threading.Lock()
 
 
-def claim_sdr_device(device_index: int, mode_name: str, sdr_type: str = 'rtlsdr') -> str | None:
+def claim_sdr_device(device_index: int, mode_name: str, sdr_type: str = "rtlsdr") -> str | None:
     """Claim an SDR device for a mode.
 
     Checks the in-app registry first, then probes the USB device to
@@ -379,12 +390,13 @@ def claim_sdr_device(device_index: int, mode_name: str, sdr_type: str = 'rtlsdr'
     with sdr_device_registry_lock:
         if key in sdr_device_registry:
             in_use_by = sdr_device_registry[key]
-            return f'SDR device {sdr_type}:{device_index} is in use by {in_use_by}. Stop {in_use_by} first or use a different device.'
+            return f"SDR device {sdr_type}:{device_index} is in use by {in_use_by}. Stop {in_use_by} first or use a different device."
 
         # Probe the USB device to catch external processes holding the handle
-        if sdr_type == 'rtlsdr':
+        if sdr_type == "rtlsdr":
             try:
                 from utils.sdr.detection import probe_rtlsdr_device
+
                 usb_error = probe_rtlsdr_device(device_index)
                 if usb_error:
                     return usb_error
@@ -395,7 +407,7 @@ def claim_sdr_device(device_index: int, mode_name: str, sdr_type: str = 'rtlsdr'
         return None
 
 
-def release_sdr_device(device_index: int, sdr_type: str = 'rtlsdr') -> None:
+def release_sdr_device(device_index: int, sdr_type: str = "rtlsdr") -> None:
     """Release an SDR device from the registry.
 
     Args:
@@ -421,77 +433,78 @@ def get_sdr_device_status() -> dict[str, str]:
 # MAIN ROUTES
 # ============================================
 
+
 @app.before_request
 def require_login():
     # Routes that don't require login (to avoid infinite redirect loop)
-    allowed_routes = ['login', 'static', 'favicon', 'health', 'health_check']
+    allowed_routes = ["login", "static", "favicon", "health", "health_check"]
 
     # Allow audio streaming endpoints without session auth
-    if request.path.startswith('/listening/audio/'):
+    if request.path.startswith("/listening/audio/"):
         return None
 
     # Allow WebSocket upgrade requests (page load already required auth)
-    if request.path.startswith('/ws/'):
+    if request.path.startswith("/ws/"):
         return None
 
     # Controller API endpoints use API key auth, not session auth
     # Allow agent push/pull endpoints without session login
-    if request.path.startswith('/controller/'):
+    if request.path.startswith("/controller/"):
         return None  # Skip session check, controller routes handle their own auth
 
     # If user is not logged in and the current route is not allowed...
-    if 'logged_in' not in session and request.endpoint not in allowed_routes:
-        return redirect(url_for('login'))
+    if "logged_in" not in session and request.endpoint not in allowed_routes:
+        return redirect(url_for("login"))
 
-@app.route('/logout')
+
+@app.route("/logout")
 def logout():
-    session.pop('logged_in', None)
-    return redirect(url_for('login'))
+    session.pop("logged_in", None)
+    return redirect(url_for("login"))
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@app.route("/login", methods=["GET", "POST"])
 @limiter.limit("5 per minute")  # Limit to 5 login attempts per minute per IP
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
 
         # Connect to DB and find user
         with get_db() as conn:
-            cursor = conn.execute(
-                'SELECT password_hash, role FROM users WHERE username = ?',
-                (username,)
-            )
+            cursor = conn.execute("SELECT password_hash, role FROM users WHERE username = ?", (username,))
             user = cursor.fetchone()
 
         # Verify user exists and password is correct
-        if user and check_password_hash(user['password_hash'], password):
+        if user and check_password_hash(user["password_hash"], password):
             # Store data in session
-            session['logged_in'] = True
-            session['username'] = username
-            session['role'] = user['role']
+            session["logged_in"] = True
+            session["username"] = username
+            session["role"] = user["role"]
 
             logger.info(f"User '{username}' logged in successfully.")
-            return redirect(url_for('index'))
+            return redirect(url_for("index"))
         else:
             logger.warning(f"Failed login attempt for username: {username}")
             flash("ACCESS DENIED: INVALID CREDENTIALS", "error")
 
-    return render_template('login.html', version=VERSION)
+    return render_template("login.html", version=VERSION)
 
-@app.route('/')
+
+@app.route("/")
 def index() -> str:
-    if request.args.get('mode') == 'satellite':
-        return redirect(url_for('satellite.satellite_dashboard'))
+    if request.args.get("mode") == "satellite":
+        return redirect(url_for("satellite.satellite_dashboard"))
 
     tools = {
-        'rtl_fm': check_tool('rtl_fm'),
-        'multimon': check_tool('multimon-ng'),
-        'rtl_433': check_tool('rtl_433'),
-        'rtlamr': check_tool('rtlamr')
+        "rtl_fm": check_tool("rtl_fm"),
+        "multimon": check_tool("multimon-ng"),
+        "rtl_433": check_tool("rtl_433"),
+        "rtlamr": check_tool("rtlamr"),
     }
     devices = [d.to_dict() for d in SDRFactory.detect_devices()]
     return render_template(
-        'index.html',
+        "index.html",
         tools=tools,
         devices=devices,
         version=VERSION,
@@ -502,31 +515,31 @@ def index() -> str:
     )
 
 
-@app.route('/favicon.svg')
+@app.route("/favicon.svg")
 def favicon() -> Response:
-    return send_file('favicon.svg', mimetype='image/svg+xml')
+    return send_file("static/favicon.svg", mimetype="image/svg+xml")
 
 
-@app.route('/sw.js')
+@app.route("/sw.js")
 def service_worker() -> Response:
-    resp = send_from_directory('static', 'sw.js', mimetype='application/javascript')
-    resp.headers['Service-Worker-Allowed'] = '/'
+    resp = send_from_directory("static", "sw.js", mimetype="application/javascript")
+    resp.headers["Service-Worker-Allowed"] = "/"
     return resp
 
 
-@app.route('/manifest.json')
+@app.route("/manifest.json")
 def pwa_manifest() -> Response:
-    return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
+    return send_from_directory("static", "manifest.json", mimetype="application/manifest+json")
 
 
-@app.route('/devices')
+@app.route("/devices")
 def get_devices() -> Response:
     """Get all detected SDR devices with hardware type info."""
     devices = SDRFactory.detect_devices()
     return jsonify([d.to_dict() for d in devices])
 
 
-@app.route('/devices/status')
+@app.route("/devices/status")
 def get_devices_status() -> Response:
     """Get all SDR devices with usage status."""
     devices = SDRFactory.detect_devices()
@@ -536,258 +549,250 @@ def get_devices_status() -> Response:
     for device in devices:
         d = device.to_dict()
         key = f"{device.sdr_type.value}:{device.index}"
-        d['in_use'] = key in registry
-        d['used_by'] = registry.get(key)
+        d["in_use"] = key in registry
+        d["used_by"] = registry.get(key)
         result.append(d)
 
     return jsonify(result)
 
 
-@app.route('/devices/debug')
+@app.route("/devices/debug")
 def get_devices_debug() -> Response:
     """Get detailed SDR device detection diagnostics."""
     import shutil
 
     diagnostics = {
-        'tools': {},
-        'rtl_test': {},
-        'soapy': {},
-        'usb': {},
-        'kernel_modules': {},
-        'detected_devices': [],
-        'suggestions': []
+        "tools": {},
+        "rtl_test": {},
+        "soapy": {},
+        "usb": {},
+        "kernel_modules": {},
+        "detected_devices": [],
+        "suggestions": [],
     }
 
     # Check for required tools
-    diagnostics['tools']['rtl_test'] = shutil.which('rtl_test') is not None
-    diagnostics['tools']['SoapySDRUtil'] = shutil.which('SoapySDRUtil') is not None
-    diagnostics['tools']['lsusb'] = shutil.which('lsusb') is not None
+    diagnostics["tools"]["rtl_test"] = shutil.which("rtl_test") is not None
+    diagnostics["tools"]["SoapySDRUtil"] = shutil.which("SoapySDRUtil") is not None
+    diagnostics["tools"]["lsusb"] = shutil.which("lsusb") is not None
 
     # Run rtl_test and capture full output
-    if diagnostics['tools']['rtl_test']:
+    if diagnostics["tools"]["rtl_test"]:
         try:
-            result = subprocess.run(
-                ['rtl_test', '-t'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            diagnostics['rtl_test'] = {
-                'returncode': result.returncode,
-                'stdout': result.stdout[:2000] if result.stdout else '',
-                'stderr': result.stderr[:2000] if result.stderr else ''
+            result = subprocess.run(["rtl_test", "-t"], capture_output=True, text=True, timeout=5)
+            diagnostics["rtl_test"] = {
+                "returncode": result.returncode,
+                "stdout": result.stdout[:2000] if result.stdout else "",
+                "stderr": result.stderr[:2000] if result.stderr else "",
             }
 
             # Check for common errors
-            combined = (result.stdout or '') + (result.stderr or '')
-            if 'No supported devices found' in combined:
-                diagnostics['suggestions'].append('No RTL-SDR device detected. Check USB connection.')
-            if 'usb_claim_interface error' in combined:
-                diagnostics['suggestions'].append('Device busy - kernel DVB driver may have claimed it. Run: sudo modprobe -r dvb_usb_rtl28xxu')
-            if 'Permission denied' in combined.lower():
-                diagnostics['suggestions'].append('USB permission denied. Add udev rules or run as root.')
+            combined = (result.stdout or "") + (result.stderr or "")
+            if "No supported devices found" in combined:
+                diagnostics["suggestions"].append("No RTL-SDR device detected. Check USB connection.")
+            if "usb_claim_interface error" in combined:
+                diagnostics["suggestions"].append(
+                    "Device busy - kernel DVB driver may have claimed it. Run: sudo modprobe -r dvb_usb_rtl28xxu"
+                )
+            if "Permission denied" in combined.lower():
+                diagnostics["suggestions"].append("USB permission denied. Add udev rules or run as root.")
 
         except subprocess.TimeoutExpired:
-            diagnostics['rtl_test'] = {'error': 'Timeout after 5 seconds'}
+            diagnostics["rtl_test"] = {"error": "Timeout after 5 seconds"}
         except Exception as e:
-            diagnostics['rtl_test'] = {'error': str(e)}
+            diagnostics["rtl_test"] = {"error": str(e)}
     else:
-        diagnostics['suggestions'].append('rtl_test not found. Install rtl-sdr package.')
+        diagnostics["suggestions"].append("rtl_test not found. Install rtl-sdr package.")
 
     # Run SoapySDRUtil
-    if diagnostics['tools']['SoapySDRUtil']:
+    if diagnostics["tools"]["SoapySDRUtil"]:
         try:
-            result = subprocess.run(
-                ['SoapySDRUtil', '--find'],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            diagnostics['soapy'] = {
-                'returncode': result.returncode,
-                'stdout': result.stdout[:2000] if result.stdout else '',
-                'stderr': result.stderr[:2000] if result.stderr else ''
+            result = subprocess.run(["SoapySDRUtil", "--find"], capture_output=True, text=True, timeout=10)
+            diagnostics["soapy"] = {
+                "returncode": result.returncode,
+                "stdout": result.stdout[:2000] if result.stdout else "",
+                "stderr": result.stderr[:2000] if result.stderr else "",
             }
         except subprocess.TimeoutExpired:
-            diagnostics['soapy'] = {'error': 'Timeout after 10 seconds'}
+            diagnostics["soapy"] = {"error": "Timeout after 10 seconds"}
         except Exception as e:
-            diagnostics['soapy'] = {'error': str(e)}
+            diagnostics["soapy"] = {"error": str(e)}
 
     # Check USB devices (Linux)
-    if diagnostics['tools']['lsusb']:
+    if diagnostics["tools"]["lsusb"]:
         try:
-            result = subprocess.run(
-                ['lsusb'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            result = subprocess.run(["lsusb"], capture_output=True, text=True, timeout=5)
             # Filter for common SDR vendor IDs
-            sdr_vendors = ['0bda', '1d50', '1df7', '0403']  # Realtek, OpenMoko/HackRF, SDRplay, FTDI
-            usb_lines = [l for l in result.stdout.split('\n')
-                        if any(v in l.lower() for v in sdr_vendors) or 'rtl' in l.lower() or 'sdr' in l.lower()]
-            diagnostics['usb']['devices'] = usb_lines if usb_lines else ['No SDR-related USB devices found']
+            sdr_vendors = ["0bda", "1d50", "1df7", "0403"]  # Realtek, OpenMoko/HackRF, SDRplay, FTDI
+            usb_lines = [
+                l
+                for l in result.stdout.split("\n")
+                if any(v in l.lower() for v in sdr_vendors) or "rtl" in l.lower() or "sdr" in l.lower()
+            ]
+            diagnostics["usb"]["devices"] = usb_lines if usb_lines else ["No SDR-related USB devices found"]
         except Exception as e:
-            diagnostics['usb'] = {'error': str(e)}
+            diagnostics["usb"] = {"error": str(e)}
 
     # Check for loaded kernel modules that conflict (Linux)
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         try:
-            result = subprocess.run(
-                ['lsmod'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            conflicting = ['dvb_usb_rtl28xxu', 'rtl2832', 'rtl2830']
+            result = subprocess.run(["lsmod"], capture_output=True, text=True, timeout=5)
+            conflicting = ["dvb_usb_rtl28xxu", "rtl2832", "rtl2830"]
             loaded = [m for m in conflicting if m in result.stdout]
-            diagnostics['kernel_modules']['conflicting_loaded'] = loaded
+            diagnostics["kernel_modules"]["conflicting_loaded"] = loaded
             if loaded:
-                diagnostics['suggestions'].append(f"Conflicting kernel modules loaded: {', '.join(loaded)}. Run: sudo modprobe -r {' '.join(loaded)}")
+                diagnostics["suggestions"].append(
+                    f"Conflicting kernel modules loaded: {', '.join(loaded)}. Run: sudo modprobe -r {' '.join(loaded)}"
+                )
         except Exception as e:
-            diagnostics['kernel_modules'] = {'error': str(e)}
+            diagnostics["kernel_modules"] = {"error": str(e)}
 
     # Get detected devices
     devices = SDRFactory.detect_devices()
-    diagnostics['detected_devices'] = [d.to_dict() for d in devices]
+    diagnostics["detected_devices"] = [d.to_dict() for d in devices]
 
-    if not devices and not diagnostics['suggestions']:
-        diagnostics['suggestions'].append('No devices detected. Check USB connection and driver installation.')
+    if not devices and not diagnostics["suggestions"]:
+        diagnostics["suggestions"].append("No devices detected. Check USB connection and driver installation.")
 
     return jsonify(diagnostics)
 
 
-@app.route('/dependencies')
+@app.route("/dependencies")
 def get_dependencies() -> Response:
     """Get status of all tool dependencies."""
     results = check_all_dependencies()
 
     # Determine OS for install instructions
     system = platform.system().lower()
-    if system == 'darwin':
-        pkg_manager = 'brew'
-    elif system == 'linux':
-        pkg_manager = 'apt'
+    if system == "darwin":
+        pkg_manager = "brew"
+    elif system == "linux":
+        pkg_manager = "apt"
     else:
-        pkg_manager = 'manual'
+        pkg_manager = "manual"
 
-    return jsonify({
-        'status': 'success',
-        'os': system,
-        'pkg_manager': pkg_manager,
-        'modes': results
-    })
+    return jsonify({"status": "success", "os": system, "pkg_manager": pkg_manager, "modes": results})
 
 
-@app.route('/export/aircraft', methods=['GET'])
+@app.route("/export/aircraft", methods=["GET"])
 def export_aircraft() -> Response:
     """Export aircraft data as JSON or CSV."""
     import csv
     import io
 
-    format_type = request.args.get('format', 'json').lower()
+    format_type = request.args.get("format", "json").lower()
 
-    if format_type == 'csv':
+    if format_type == "csv":
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(['icao', 'callsign', 'altitude', 'speed', 'heading', 'lat', 'lon', 'squawk', 'last_seen'])
+        writer.writerow(["icao", "callsign", "altitude", "speed", "heading", "lat", "lon", "squawk", "last_seen"])
 
         for icao, ac in adsb_aircraft.items():
-            writer.writerow([
-                icao,
-                ac.get('callsign', '') if isinstance(ac, dict) else '',
-                ac.get('altitude', '') if isinstance(ac, dict) else '',
-                ac.get('speed', '') if isinstance(ac, dict) else '',
-                ac.get('heading', '') if isinstance(ac, dict) else '',
-                ac.get('lat', '') if isinstance(ac, dict) else '',
-                ac.get('lon', '') if isinstance(ac, dict) else '',
-                ac.get('squawk', '') if isinstance(ac, dict) else '',
-                ac.get('lastSeen', '') if isinstance(ac, dict) else ''
-            ])
+            writer.writerow(
+                [
+                    icao,
+                    ac.get("callsign", "") if isinstance(ac, dict) else "",
+                    ac.get("altitude", "") if isinstance(ac, dict) else "",
+                    ac.get("speed", "") if isinstance(ac, dict) else "",
+                    ac.get("heading", "") if isinstance(ac, dict) else "",
+                    ac.get("lat", "") if isinstance(ac, dict) else "",
+                    ac.get("lon", "") if isinstance(ac, dict) else "",
+                    ac.get("squawk", "") if isinstance(ac, dict) else "",
+                    ac.get("lastSeen", "") if isinstance(ac, dict) else "",
+                ]
+            )
 
-        response = Response(output.getvalue(), mimetype='text/csv')
-        response.headers['Content-Disposition'] = 'attachment; filename=aircraft.csv'
+        response = Response(output.getvalue(), mimetype="text/csv")
+        response.headers["Content-Disposition"] = "attachment; filename=aircraft.csv"
         return response
     else:
-        return jsonify({
-            'timestamp': __import__('datetime').datetime.utcnow().isoformat(),
-            'aircraft': adsb_aircraft.values()
-        })
+        return jsonify(
+            {"timestamp": __import__("datetime").datetime.utcnow().isoformat(), "aircraft": adsb_aircraft.values()}
+        )
 
 
-@app.route('/export/wifi', methods=['GET'])
+@app.route("/export/wifi", methods=["GET"])
 def export_wifi() -> Response:
     """Export WiFi networks as JSON or CSV."""
     import csv
     import io
 
-    format_type = request.args.get('format', 'json').lower()
+    format_type = request.args.get("format", "json").lower()
 
-    if format_type == 'csv':
+    if format_type == "csv":
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(['bssid', 'ssid', 'channel', 'signal', 'encryption', 'clients'])
+        writer.writerow(["bssid", "ssid", "channel", "signal", "encryption", "clients"])
 
         for bssid, net in wifi_networks.items():
-            writer.writerow([
-                bssid,
-                net.get('ssid', '') if isinstance(net, dict) else '',
-                net.get('channel', '') if isinstance(net, dict) else '',
-                net.get('signal', '') if isinstance(net, dict) else '',
-                net.get('encryption', '') if isinstance(net, dict) else '',
-                net.get('clients', 0) if isinstance(net, dict) else 0
-            ])
+            writer.writerow(
+                [
+                    bssid,
+                    net.get("ssid", "") if isinstance(net, dict) else "",
+                    net.get("channel", "") if isinstance(net, dict) else "",
+                    net.get("signal", "") if isinstance(net, dict) else "",
+                    net.get("encryption", "") if isinstance(net, dict) else "",
+                    net.get("clients", 0) if isinstance(net, dict) else 0,
+                ]
+            )
 
-        response = Response(output.getvalue(), mimetype='text/csv')
-        response.headers['Content-Disposition'] = 'attachment; filename=wifi_networks.csv'
+        response = Response(output.getvalue(), mimetype="text/csv")
+        response.headers["Content-Disposition"] = "attachment; filename=wifi_networks.csv"
         return response
     else:
-        return jsonify({
-            'timestamp': __import__('datetime').datetime.utcnow().isoformat(),
-            'networks': wifi_networks.values(),
-            'clients': wifi_clients.values()
-        })
+        return jsonify(
+            {
+                "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+                "networks": wifi_networks.values(),
+                "clients": wifi_clients.values(),
+            }
+        )
 
 
-@app.route('/export/bluetooth', methods=['GET'])
+@app.route("/export/bluetooth", methods=["GET"])
 def export_bluetooth() -> Response:
     """Export Bluetooth devices as JSON or CSV."""
     import csv
     import io
 
-    format_type = request.args.get('format', 'json').lower()
+    format_type = request.args.get("format", "json").lower()
 
-    if format_type == 'csv':
+    if format_type == "csv":
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(['mac', 'name', 'rssi', 'type', 'manufacturer', 'last_seen'])
+        writer.writerow(["mac", "name", "rssi", "type", "manufacturer", "last_seen"])
 
         for mac, dev in bt_devices.items():
-            writer.writerow([
-                mac,
-                dev.get('name', '') if isinstance(dev, dict) else '',
-                dev.get('rssi', '') if isinstance(dev, dict) else '',
-                dev.get('type', '') if isinstance(dev, dict) else '',
-                dev.get('manufacturer', '') if isinstance(dev, dict) else '',
-                dev.get('lastSeen', '') if isinstance(dev, dict) else ''
-            ])
+            writer.writerow(
+                [
+                    mac,
+                    dev.get("name", "") if isinstance(dev, dict) else "",
+                    dev.get("rssi", "") if isinstance(dev, dict) else "",
+                    dev.get("type", "") if isinstance(dev, dict) else "",
+                    dev.get("manufacturer", "") if isinstance(dev, dict) else "",
+                    dev.get("lastSeen", "") if isinstance(dev, dict) else "",
+                ]
+            )
 
-        response = Response(output.getvalue(), mimetype='text/csv')
-        response.headers['Content-Disposition'] = 'attachment; filename=bluetooth_devices.csv'
+        response = Response(output.getvalue(), mimetype="text/csv")
+        response.headers["Content-Disposition"] = "attachment; filename=bluetooth_devices.csv"
         return response
     else:
-        return jsonify({
-            'timestamp': __import__('datetime').datetime.utcnow().isoformat(),
-            'devices': bt_devices.values(),
-            'beacons': bt_beacons.values()
-        })
+        return jsonify(
+            {
+                "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+                "devices": bt_devices.values(),
+                "beacons": bt_beacons.values(),
+            }
+        )
 
 
 def _get_subghz_active() -> bool:
     """Check if SubGHz manager has an active process."""
     try:
         from utils.subghz import get_subghz_manager
-        return get_subghz_manager().active_mode != 'idle'
+
+        return get_subghz_manager().active_mode != "idle"
     except Exception:
         return False
 
@@ -796,6 +801,7 @@ def _get_singleton_running(module_path: str, getter_name: str, attr: str) -> boo
     """Safely check if a singleton-based mode is running without creating instances."""
     try:
         import importlib
+
         mod = importlib.import_module(module_path)
         getter = getattr(mod, getter_name)
         instance = getter()
@@ -810,6 +816,7 @@ def _get_tscm_active() -> bool:
     """Check if a TSCM sweep is running."""
     try:
         from routes.tscm import _sweep_running
+
         return bool(_sweep_running)
     except Exception:
         return False
@@ -823,6 +830,7 @@ def _get_bluetooth_health() -> tuple[bool, int]:
 
     try:
         from utils.bluetooth.scanner import _scanner_instance as bt_scanner
+
         if bt_scanner is not None:
             scanner_running = bool(bt_scanner.is_scanning)
             scanner_count = int(bt_scanner.device_count)
@@ -833,9 +841,10 @@ def _get_bluetooth_health() -> tuple[bool, int]:
     locate_running = False
     try:
         from utils.bt_locate import get_locate_session
+
         session = get_locate_session()
-        if session and getattr(session, 'active', False):
-            scanner = getattr(session, '_scanner', None)
+        if session and getattr(session, "active", False):
+            scanner = getattr(session, "_scanner", None)
             locate_running = bool(scanner and scanner.is_scanning)
     except Exception:
         locate_running = False
@@ -852,6 +861,7 @@ def _get_wifi_health() -> tuple[bool, int, int]:
 
     try:
         from utils.wifi.scanner import _scanner_instance as wifi_scanner
+
         if wifi_scanner is not None:
             status = wifi_scanner.get_status()
             scanner_running = bool(status.is_scanning)
@@ -869,11 +879,12 @@ def _get_wifi_health() -> tuple[bool, int, int]:
     )
 
 
-@app.route('/health')
+@app.route("/health")
 def health_check() -> Response:
     """Health check endpoint for monitoring."""
     import platform
     import time
+
     bt_active, bt_device_count = _get_bluetooth_health()
     wifi_active, wifi_network_count, wifi_client_count = _get_wifi_health()
 
@@ -881,7 +892,8 @@ def health_check() -> Response:
     db_ok = True
     try:
         from utils.database import get_connection
-        get_connection().execute('SELECT 1')
+
+        get_connection().execute("SELECT 1")
     except Exception:
         db_ok = False
 
@@ -889,65 +901,69 @@ def health_check() -> Response:
     sdr_count = 0
     try:
         from utils.sdr.detection import get_cached_devices
+
         cached = get_cached_devices()
         if cached is not None:
             sdr_count = len(cached)
     except (ImportError, Exception):
         pass
 
-    overall_status = 'healthy' if db_ok else 'degraded'
+    overall_status = "healthy" if db_ok else "degraded"
     status_code = 200 if db_ok else 503
 
-    response = jsonify({
-        'status': overall_status,
-        'version': VERSION,
-        'uptime_seconds': round(time.time() - _app_start_time, 2),
-        'system': {
-            'python_version': platform.python_version(),
-            'platform': platform.platform(),
-        },
-        'database': db_ok,
-        'sdr_devices': sdr_count,
-        'sdr_claims': get_sdr_device_status(),
-        'rate_limiting': _has_limiter,
-        'processes': {
-            'pager': current_process is not None and (current_process.poll() is None if current_process else False),
-            'sensor': sensor_process is not None and (sensor_process.poll() is None if sensor_process else False),
-            'adsb': adsb_process is not None and (adsb_process.poll() is None if adsb_process else False),
-            'ais': ais_process is not None and (ais_process.poll() is None if ais_process else False),
-            'acars': acars_process is not None and (acars_process.poll() is None if acars_process else False),
-            'vdl2': vdl2_process is not None and (vdl2_process.poll() is None if vdl2_process else False),
-            'aprs': aprs_process is not None and (aprs_process.poll() is None if aprs_process else False),
-            'wifi': wifi_active,
-            'bluetooth': bt_active,
-            'dsc': dsc_process is not None and (dsc_process.poll() is None if dsc_process else False),
-            'radiosonde': radiosonde_process is not None and (radiosonde_process.poll() is None if radiosonde_process else False),
-            'morse': morse_process is not None and (morse_process.poll() is None if morse_process else False),
-            'subghz': _get_subghz_active(),
-            'rtlamr': rtlamr_process is not None and (rtlamr_process.poll() is None if rtlamr_process else False),
-            'meshtastic': _get_singleton_running('utils.meshtastic', 'get_meshtastic_client', 'is_running'),
-            'sstv': _get_singleton_running('utils.sstv', 'get_sstv_decoder', 'is_running'),
-            'weathersat': _get_singleton_running('utils.weather_sat', 'get_weather_sat_decoder', 'is_running'),
-            'wefax': _get_singleton_running('utils.wefax', 'get_wefax_decoder', 'is_running'),
-            'sstv_general': _get_singleton_running('utils.sstv', 'get_general_sstv_decoder', 'is_running'),
-            'tscm': _get_tscm_active(),
-            'gps': _get_singleton_running('utils.gps', 'get_gps_reader', 'is_running'),
-            'bt_locate': _get_singleton_running('utils.bt_locate', 'get_locate_session', 'is_active'),
-        },
-        'data': {
-            'aircraft_count': len(adsb_aircraft),
-            'vessel_count': len(ais_vessels),
-            'wifi_networks_count': wifi_network_count,
-            'wifi_clients_count': wifi_client_count,
-            'bt_devices_count': bt_device_count,
-            'dsc_messages_count': len(dsc_messages),
+    response = jsonify(
+        {
+            "status": overall_status,
+            "version": VERSION,
+            "uptime_seconds": round(time.time() - _app_start_time, 2),
+            "system": {
+                "python_version": platform.python_version(),
+                "platform": platform.platform(),
+            },
+            "database": db_ok,
+            "sdr_devices": sdr_count,
+            "sdr_claims": get_sdr_device_status(),
+            "rate_limiting": _has_limiter,
+            "processes": {
+                "pager": current_process is not None and (current_process.poll() is None if current_process else False),
+                "sensor": sensor_process is not None and (sensor_process.poll() is None if sensor_process else False),
+                "adsb": adsb_process is not None and (adsb_process.poll() is None if adsb_process else False),
+                "ais": ais_process is not None and (ais_process.poll() is None if ais_process else False),
+                "acars": acars_process is not None and (acars_process.poll() is None if acars_process else False),
+                "vdl2": vdl2_process is not None and (vdl2_process.poll() is None if vdl2_process else False),
+                "aprs": aprs_process is not None and (aprs_process.poll() is None if aprs_process else False),
+                "wifi": wifi_active,
+                "bluetooth": bt_active,
+                "dsc": dsc_process is not None and (dsc_process.poll() is None if dsc_process else False),
+                "radiosonde": radiosonde_process is not None
+                and (radiosonde_process.poll() is None if radiosonde_process else False),
+                "morse": morse_process is not None and (morse_process.poll() is None if morse_process else False),
+                "subghz": _get_subghz_active(),
+                "rtlamr": rtlamr_process is not None and (rtlamr_process.poll() is None if rtlamr_process else False),
+                "meshtastic": _get_singleton_running("utils.meshtastic", "get_meshtastic_client", "is_running"),
+                "sstv": _get_singleton_running("utils.sstv", "get_sstv_decoder", "is_running"),
+                "weathersat": _get_singleton_running("utils.weather_sat", "get_weather_sat_decoder", "is_running"),
+                "wefax": _get_singleton_running("utils.wefax", "get_wefax_decoder", "is_running"),
+                "sstv_general": _get_singleton_running("utils.sstv", "get_general_sstv_decoder", "is_running"),
+                "tscm": _get_tscm_active(),
+                "gps": _get_singleton_running("utils.gps", "get_gps_reader", "is_running"),
+                "bt_locate": _get_singleton_running("utils.bt_locate", "get_locate_session", "is_active"),
+            },
+            "data": {
+                "aircraft_count": len(adsb_aircraft),
+                "vessel_count": len(ais_vessels),
+                "wifi_networks_count": wifi_network_count,
+                "wifi_clients_count": wifi_client_count,
+                "bt_devices_count": bt_device_count,
+                "dsc_messages_count": len(dsc_messages),
+            },
         }
-    })
+    )
     response.status_code = status_code
     return response
 
 
-@app.route('/killall', methods=['POST'])
+@app.route("/killall", methods=["POST"])
 @(csrf.exempt if csrf else lambda f: f)
 def kill_all() -> Response:
     """Kill all decoder, WiFi, and Bluetooth processes."""
@@ -963,18 +979,32 @@ def kill_all() -> Response:
 
     killed = []
     processes_to_kill = [
-        'rtl_fm', 'multimon-ng', 'rtl_433',
-        'airodump-ng', 'aireplay-ng', 'airmon-ng',
-        'dump1090', 'acarsdec', 'dumpvdl2', 'direwolf', 'AIS-catcher',
-        'hcitool', 'bluetoothctl', 'satdump',
-        'rtl_tcp', 'rtl_power', 'rtlamr', 'ffmpeg',
-        'hackrf_transfer', 'hackrf_sweep',
-        'auto_rx'
+        "rtl_fm",
+        "multimon-ng",
+        "rtl_433",
+        "airodump-ng",
+        "aireplay-ng",
+        "airmon-ng",
+        "dump1090",
+        "acarsdec",
+        "dumpvdl2",
+        "direwolf",
+        "AIS-catcher",
+        "hcitool",
+        "bluetoothctl",
+        "satdump",
+        "rtl_tcp",
+        "rtl_power",
+        "rtlamr",
+        "ffmpeg",
+        "hackrf_transfer",
+        "hackrf_sweep",
+        "auto_rx",
     ]
 
     for proc in processes_to_kill:
         try:
-            result = subprocess.run(['pkill', '-f', proc], capture_output=True)
+            result = subprocess.run(["pkill", "-f", proc], capture_output=True)
             if result.returncode == 0:
                 killed.append(proc)
         except (subprocess.SubprocessError, OSError):
@@ -1020,6 +1050,7 @@ def kill_all() -> Response:
     with ook_lock:
         try:
             from routes.ook import cleanup_ook
+
             cleanup_ook(emit_status=False)
         except Exception:
             if ook_process:
@@ -1051,13 +1082,14 @@ def kill_all() -> Response:
     # Reset Bluetooth v2 scanner
     try:
         reset_bluetooth_scanner()
-        killed.append('bluetooth')
+        killed.append("bluetooth")
     except Exception:
         pass
 
     # Reset SubGHz state
     try:
         from utils.subghz import get_subghz_manager
+
         get_subghz_manager().stop_all()
     except Exception:
         pass
@@ -1066,7 +1098,7 @@ def kill_all() -> Response:
     with sdr_device_registry_lock:
         sdr_device_registry.clear()
 
-    return jsonify({'status': 'killed', 'processes': killed})
+    return jsonify({"status": "killed", "processes": killed})
 
 
 def _ensure_self_signed_cert(cert_dir: str) -> tuple:
@@ -1074,8 +1106,8 @@ def _ensure_self_signed_cert(cert_dir: str) -> tuple:
 
     Returns (cert_path, key_path) tuple.
     """
-    cert_path = os.path.join(cert_dir, 'intercept.crt')
-    key_path = os.path.join(cert_dir, 'intercept.key')
+    cert_path = os.path.join(cert_dir, "intercept.crt")
+    key_path = os.path.join(cert_dir, "intercept.key")
 
     if os.path.exists(cert_path) and os.path.exists(key_path):
         print(f"Using existing SSL certificate: {cert_path}")
@@ -1085,12 +1117,27 @@ def _ensure_self_signed_cert(cert_dir: str) -> tuple:
     print("Generating self-signed SSL certificate...")
 
     import subprocess
-    result = subprocess.run([
-        'openssl', 'req', '-x509', '-newkey', 'rsa:2048',
-        '-keyout', key_path, '-out', cert_path,
-        '-days', '365', '-nodes',
-        '-subj', '/CN=intercept/O=INTERCEPT/C=US',
-    ], capture_output=True, text=True)
+
+    result = subprocess.run(
+        [
+            "openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:2048",
+            "-keyout",
+            key_path,
+            "-out",
+            cert_path,
+            "-days",
+            "365",
+            "-nodes",
+            "-subj",
+            "/CN=intercept/O=INTERCEPT/C=US",
+        ],
+        capture_output=True,
+        text=True,
+    )
 
     if result.returncode != 0:
         raise RuntimeError(f"Failed to generate SSL certificate: {result.stderr}")
@@ -1122,15 +1169,18 @@ def _init_app() -> None:
 
     # Initialize database for settings storage
     from utils.database import init_db
+
     init_db()
 
     # Register blueprints (essential — without these, all routes 404)
     from routes import register_blueprints
+
     register_blueprints(app)
 
     # Initialize WebSocket for audio streaming
     try:
         from routes.audio_websocket import init_audio_websocket
+
         init_audio_websocket(app)
     except Exception:
         pass
@@ -1138,6 +1188,7 @@ def _init_app() -> None:
     # Initialize KiwiSDR WebSocket audio proxy
     try:
         from routes.websdr import init_websdr_audio
+
         init_websdr_audio(app)
     except Exception:
         pass
@@ -1145,6 +1196,7 @@ def _init_app() -> None:
     # Initialize WebSocket for waterfall streaming
     try:
         from routes.waterfall_websocket import init_waterfall_websocket
+
         init_waterfall_websocket(app)
     except Exception:
         pass
@@ -1152,6 +1204,7 @@ def _init_app() -> None:
     # Initialize WebSocket for meteor scatter monitoring
     try:
         from routes.meteor_websocket import init_meteor_websocket
+
         init_meteor_websocket(app)
     except Exception:
         pass
@@ -1159,6 +1212,7 @@ def _init_app() -> None:
     # Initialize WebSocket for ground station live waterfall
     try:
         from routes.ground_station import init_ground_station_websocket
+
         init_ground_station_websocket(app)
     except Exception:
         pass
@@ -1169,6 +1223,7 @@ def _init_app() -> None:
     def _deferred_init():
         """Run heavy initialization after a short delay."""
         import time
+
         time.sleep(1)  # Let the worker start serving first
 
         # Clean up stale processes from previous runs
@@ -1186,6 +1241,7 @@ def _init_app() -> None:
                 cleanup_old_signal_history,
                 cleanup_old_timeline_entries,
             )
+
             cleanup_manager.register_db_cleanup(cleanup_old_signal_history, interval_multiplier=1440)
             cleanup_manager.register_db_cleanup(cleanup_old_timeline_entries, interval_multiplier=1440)
             cleanup_manager.register_db_cleanup(cleanup_old_dsc_alerts, interval_multiplier=1440)
@@ -1197,15 +1253,17 @@ def _init_app() -> None:
         # Initialize TLE auto-refresh (must be after blueprint registration)
         try:
             from routes.satellite import init_tle_auto_refresh
-            if not os.environ.get('TESTING'):
+
+            if not os.environ.get("TESTING"):
                 init_tle_auto_refresh()
         except Exception as e:
             logger.warning(f"Failed to initialize TLE auto-refresh: {e}")
 
         # Pre-warm SatNOGS transmitter cache so first dashboard load is instant
         try:
-            if not os.environ.get('TESTING'):
+            if not os.environ.get("TESTING"):
                 from utils.satnogs import prefetch_transmitters
+
                 prefetch_transmitters()
         except Exception as e:
             logger.warning(f"SatNOGS prefetch failed: {e}")
@@ -1214,6 +1272,7 @@ def _init_app() -> None:
         try:
             import app as _self
             from utils.ground_station.scheduler import get_ground_station_scheduler
+
             gs_scheduler = get_ground_station_scheduler()
 
             def _gs_event_to_sse(event: dict) -> None:
@@ -1240,37 +1299,18 @@ def main() -> None:
     import config
 
     parser = argparse.ArgumentParser(
-        description='INTERCEPT - Signal Intelligence Platform',
-        epilog='Environment variables: INTERCEPT_HOST, INTERCEPT_PORT, INTERCEPT_DEBUG, INTERCEPT_LOG_LEVEL'
+        description="INTERCEPT - Signal Intelligence Platform",
+        epilog="Environment variables: INTERCEPT_HOST, INTERCEPT_PORT, INTERCEPT_DEBUG, INTERCEPT_LOG_LEVEL",
     )
     parser.add_argument(
-        '-p', '--port',
-        type=int,
-        default=config.PORT,
-        help=f'Port to run server on (default: {config.PORT})'
+        "-p", "--port", type=int, default=config.PORT, help=f"Port to run server on (default: {config.PORT})"
     )
+    parser.add_argument("-H", "--host", default=config.HOST, help=f"Host to bind to (default: {config.HOST})")
+    parser.add_argument("-d", "--debug", action="store_true", default=config.DEBUG, help="Enable debug mode")
     parser.add_argument(
-        '-H', '--host',
-        default=config.HOST,
-        help=f'Host to bind to (default: {config.HOST})'
+        "--https", action="store_true", default=config.HTTPS, help="Enable HTTPS with self-signed certificate"
     )
-    parser.add_argument(
-        '-d', '--debug',
-        action='store_true',
-        default=config.DEBUG,
-        help='Enable debug mode'
-    )
-    parser.add_argument(
-        '--https',
-        action='store_true',
-        default=config.HTTPS,
-        help='Enable HTTPS with self-signed certificate'
-    )
-    parser.add_argument(
-        '--check-deps',
-        action='store_true',
-        help='Check dependencies and exit'
-    )
+    parser.add_argument("--check-deps", action="store_true", help="Check dependencies and exit")
     args = parser.parse_args()
 
     # Check dependencies only
@@ -1279,11 +1319,11 @@ def main() -> None:
         print("Dependency Status:")
         print("-" * 40)
         for _mode, info in results.items():
-            status = "✓" if info['ready'] else "✗"
+            status = "✓" if info["ready"] else "✗"
             print(f"\n{status} {info['name']}:")
-            for tool, tool_info in info['tools'].items():
-                tool_status = "✓" if tool_info['installed'] else "✗"
-                req = " (required)" if tool_info['required'] else ""
+            for tool, tool_info in info["tools"].items():
+                tool_status = "✓" if tool_info["installed"] else "✗"
+                req = " (required)" if tool_info["required"] else ""
                 print(f"    {tool_status} {tool}{req}")
         sys.exit(0)
 
@@ -1295,6 +1335,7 @@ def main() -> None:
 
     # Check if running as root (required for WiFi monitor mode, some BT operations)
     import os
+
     if os.geteuid() != 0:
         print("\033[93m" + "=" * 50)
         print("  ⚠️  WARNING: Not running as root/sudo")
@@ -1309,9 +1350,9 @@ def main() -> None:
         print("=" * 50 + "\033[0m")
         print()
         # Store for API access
-        app.config['RUNNING_AS_ROOT'] = False
+        app.config["RUNNING_AS_ROOT"] = False
     else:
-        app.config['RUNNING_AS_ROOT'] = True
+        app.config["RUNNING_AS_ROOT"] = True
         print("Running as root - full capabilities enabled")
         print()
 
@@ -1321,20 +1362,20 @@ def main() -> None:
     # Configure SSL if HTTPS is enabled
     ssl_context = None
     if args.https:
-        cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'certs')
+        cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "certs")
         if config.SSL_CERT and config.SSL_KEY:
             ssl_context = (config.SSL_CERT, config.SSL_KEY)
             print(f"Using provided SSL certificate: {config.SSL_CERT}")
         else:
             ssl_context = _ensure_self_signed_cert(cert_dir)
 
-    protocol = 'https' if ssl_context else 'http'
+    protocol = "https" if ssl_context else "http"
     print(f"Open {protocol}://localhost:{args.port} in your browser")
     print()
     print("Press Ctrl+C to stop")
     print()
 
-# Avoid loading a global ~/.env when running the script directly.
+    # Avoid loading a global ~/.env when running the script directly.
     app.run(
         host=args.host,
         port=args.port,
