@@ -68,3 +68,4 @@ data/subghz/captures/
 # Local utility scripts
 reset-sdr.*
 .superpowers/
+docs/superpowers/
