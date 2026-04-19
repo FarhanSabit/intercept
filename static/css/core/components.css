@@ -140,7 +140,6 @@
     border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(5px);
 }
 
 .card-header {
@@ -177,8 +176,7 @@
     border: 1px solid rgba(74, 163, 255, 0.24);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    box-shadow: var(--shadow-sm), inset 0 0 40px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(5px);
+    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 @supports (clip-path: polygon(0 0)) {
@@ -234,14 +232,8 @@
 }
 
 @keyframes panel-pulse {
-    0%, 100% {
-        box-shadow: 0 0 4px var(--status-online), 0 0 8px rgba(56, 193, 128, 0.4);
-        opacity: 1;
-    }
-    50% {
-        box-shadow: 0 0 8px var(--status-online), 0 0 16px rgba(56, 193, 128, 0.6);
-        opacity: 0.85;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }
 
 .panel-indicator.active {
@@ -254,6 +246,10 @@
     .panel-indicator.active {
         animation: none;
     }
+}
+
+[data-animations="off"] .panel-indicator.active {
+    animation: none;
 }
 
 .panel-content {

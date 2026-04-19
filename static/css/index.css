@@ -7345,6 +7345,11 @@ body::before {
     animation: none !important;
 }
 
+[data-animations="off"] body::before,
+[data-animations="off"] .visuals-container::after {
+    display: none;
+}
+
 /* ============================================
    VISUAL REFRESH OVERRIDES
    ============================================ */
