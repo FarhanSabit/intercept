@@ -16,8 +16,6 @@ services:
     build: .
     pull_policy: never
     container_name: intercept
-    profiles:
-      - basic
     ports:
       - "5050:5050"
       # Uncomment for HTTPS support (set INTERCEPT_HTTPS=true below)

@@ -1792,11 +1792,6 @@ const BtLocate = (function() {
             const irkInput = document.getElementById('btLocateIrk');
             if (irkInput) irkInput.value = deviceInfo.irk_hex;
         }
-
-        // Switch to bt_locate mode
-        if (typeof switchMode === 'function') {
-            switchMode('bt_locate');
-        }
     }
 
     function clearHandoff() {

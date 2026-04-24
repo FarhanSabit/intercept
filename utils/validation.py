@@ -93,11 +93,16 @@ def validate_rtl_tcp_port(port: Any) -> int:
 
 
 def validate_gain(gain: Any) -> float:
-    """Validate and return gain value."""
+    """Validate and return gain value.
+
+    Accepts 0 (auto/minimum) up to 102 dB to cover multi-stage SDRs
+    (HackRF LNA+VGA = 40+62 = 102 dB max). RTL-SDR caps at 50 dB
+    internally; values above 50 are only meaningful for HackRF/LimeSDR.
+    """
     try:
         gain_float = float(gain)
-        if not 0 <= gain_float <= 50:
-            raise ValueError(f"Gain must be between 0 and 50, got {gain_float}")
+        if not 0 <= gain_float <= 102:
+            raise ValueError(f"Gain must be between 0 and 102, got {gain_float}")
         return gain_float
     except (ValueError, TypeError) as e:
         raise ValueError(f"Invalid gain: {gain}") from e

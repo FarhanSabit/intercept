@@ -119,9 +119,10 @@ const WiFiMode = (function() {
     let probeRequests = [];
     let channelStats = [];
     let recommendations = [];
+    let channelHistory = []; // max 10 entries, each { timestamp, channels: {1:N,...,11:N} }
 
     // UI state
-    let selectedNetwork = null;
+    let selectedBssid = null;
     let currentFilter = 'all';
     let currentSort = { field: 'rssi', order: 'desc' };
     let renderFramePending = false;
@@ -129,7 +130,6 @@ const WiFiMode = (function() {
         table: false,
         stats: false,
         radar: false,
-        chart: false,
         detail: false,
     };
     const listenersBound = {
@@ -167,9 +167,8 @@ const WiFiMode = (function() {
         initScanModeTabs();
         initNetworkFilters();
         initSortControls();
-        initProximityRadar();
-        initChannelChart();
-        scheduleRender({ table: true, stats: true, radar: true, chart: true });
+        initHeatmap();
+        scheduleRender({ table: true, stats: true, radar: true });
 
         // Check if already scanning
         checkScanStatus();
@@ -190,34 +189,34 @@ const WiFiMode = (function() {
             scanModeDeep: document.getElementById('wifiScanModeDeep'),
 
             // Status bar
-            scanStatus: document.getElementById('wifiScanStatus'),
+            scanIndicator: document.getElementById('wifiScanIndicator'),
+            openCount: document.getElementById('wifiOpenCount'),
             networkCount: document.getElementById('wifiNetworkCount'),
             clientCount: document.getElementById('wifiClientCount'),
             hiddenCount: document.getElementById('wifiHiddenCount'),
 
-            // Network table
-            networkTable: document.getElementById('wifiNetworkTable'),
-            networkTableBody: document.getElementById('wifiNetworkTableBody'),
+            // Network list
+            networkList: document.getElementById('wifiNetworkList'),
             networkFilters: document.getElementById('wifiNetworkFilters'),
 
-            // Visualizations
-            proximityRadar: document.getElementById('wifiProximityRadar'),
-            channelChart: document.getElementById('wifiChannelChart'),
-            channelBandTabs: document.getElementById('wifiChannelBandTabs'),
+            // Visualizations — heatmap & security ring
+            heatmapGrid: document.getElementById('wifiHeatmapGrid'),
+            heatmapChLabels: document.getElementById('wifiHeatmapChLabels'),
+            heatmapCount: document.getElementById('wifiHeatmapCount'),
+            securityRingSvg: document.getElementById('wifiSecurityRingSvg'),
+            securityRingLegend: document.getElementById('wifiSecurityRingLegend'),
+            heatmapView: document.getElementById('wifiHeatmapView'),
+            detailView: document.getElementById('wifiDetailView'),
+            rightPanelTitle: document.getElementById('wifiRightPanelTitle'),
+            detailBackBtn: document.getElementById('wifiDetailBackBtn'),
 
             // Zone summary
             zoneImmediate: document.getElementById('wifiZoneImmediate'),
             zoneNear: document.getElementById('wifiZoneNear'),
             zoneFar: document.getElementById('wifiZoneFar'),
 
-            // Security counts
-            wpa3Count: document.getElementById('wpa3Count'),
-            wpa2Count: document.getElementById('wpa2Count'),
-            wepCount: document.getElementById('wepCount'),
-            openCount: document.getElementById('openCount'),
-
-            // Detail drawer
-            detailDrawer: document.getElementById('wifiDetailDrawer'),
+            // Detail panel
+            detailSignalFill: document.getElementById('wifiDetailSignalFill'),
             detailEssid: document.getElementById('wifiDetailEssid'),
             detailBssid: document.getElementById('wifiDetailBssid'),
             detailRssi: document.getElementById('wifiDetailRssi'),
@@ -669,12 +668,12 @@ const WiFiMode = (function() {
         }
 
         // Update status
-        if (elements.scanStatus) {
-            elements.scanStatus.textContent = scanning
-                ? `Scanning (${scanMode === 'quick' ? 'Quick' : 'Deep'})...`
-                : 'Idle';
-            elements.scanStatus.className = scanning ? 'status-scanning' : 'status-idle';
-        }
+        const dot  = elements.scanIndicator?.querySelector('.wifi-scan-dot');
+        const text = elements.scanIndicator?.querySelector('.wifi-scan-text');
+        if (dot)  dot.style.display = scanning ? 'inline-block' : 'none';
+        if (text) text.textContent  = scanning
+            ? `SCANNING (${scanMode === 'quick' ? 'Quick' : 'Deep'})`
+            : 'IDLE';
     }
 
     async function checkScanStatus() {
@@ -761,7 +760,7 @@ const WiFiMode = (function() {
         }
 
         // Update UI
-        scheduleRender({ table: true, stats: true, radar: true, chart: true });
+        scheduleRender({ table: true, stats: true, radar: true });
 
         // Callbacks
         result.access_points.forEach(ap => {
@@ -976,8 +975,7 @@ const WiFiMode = (function() {
             table: true,
             stats: true,
             radar: true,
-            chart: true,
-            detail: selectedNetwork === network.bssid,
+            detail: selectedBssid === network.bssid,
         });
 
         if (onNetworkUpdate) onNetworkUpdate(network);
@@ -1009,7 +1007,7 @@ const WiFiMode = (function() {
             network.display_name = `${revealedSsid} (revealed)`;
             scheduleRender({
                 table: true,
-                detail: selectedNetwork === bssid,
+                detail: selectedBssid === bssid,
             });
 
             // Show notification
@@ -1044,34 +1042,27 @@ const WiFiMode = (function() {
             });
         }
 
-        updateNetworkTable();
+        renderNetworks();
     }
 
     function initSortControls() {
         if (listenersBound.sort) return;
-        if (!elements.networkTable) return;
 
-        elements.networkTable.addEventListener('click', (e) => {
-            const th = e.target.closest('th[data-sort]');
-            if (th) {
-                const field = th.dataset.sort;
+        document.querySelectorAll('.wifi-sort-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const field = btn.dataset.sort;
                 if (currentSort.field === field) {
                     currentSort.order = currentSort.order === 'desc' ? 'asc' : 'desc';
                 } else {
                     currentSort.field = field;
                     currentSort.order = 'desc';
                 }
-                updateNetworkTable();
-            }
+                document.querySelectorAll('.wifi-sort-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                scheduleRender({ table: true });
+            });
         });
 
-        if (elements.networkTableBody) {
-            elements.networkTableBody.addEventListener('click', (e) => {
-                const row = e.target.closest('tr[data-bssid]');
-                if (!row) return;
-                selectNetwork(row.dataset.bssid);
-            });
-        }
         listenersBound.sort = true;
     }
 
@@ -1079,7 +1070,6 @@ const WiFiMode = (function() {
         pendingRender.table = pendingRender.table || Boolean(flags.table);
         pendingRender.stats = pendingRender.stats || Boolean(flags.stats);
         pendingRender.radar = pendingRender.radar || Boolean(flags.radar);
-        pendingRender.chart = pendingRender.chart || Boolean(flags.chart);
         pendingRender.detail = pendingRender.detail || Boolean(flags.detail);
 
         if (renderFramePending) return;
@@ -1088,24 +1078,34 @@ const WiFiMode = (function() {
         requestAnimationFrame(() => {
             renderFramePending = false;
 
-            if (pendingRender.table) updateNetworkTable();
+            if (pendingRender.table) renderNetworks();
             if (pendingRender.stats) updateStats();
-            if (pendingRender.radar) updateProximityRadar();
-            if (pendingRender.chart) updateChannelChart();
-            if (pendingRender.detail && selectedNetwork) {
-                updateDetailPanel(selectedNetwork, { refreshClients: false });
+            if (pendingRender.radar) renderRadar(Array.from(networks.values()));
+            if (pendingRender.detail && selectedBssid) {
+                updateDetailPanel(selectedBssid, { refreshClients: false });
             }
 
             pendingRender.table = false;
             pendingRender.stats = false;
             pendingRender.radar = false;
-            pendingRender.chart = false;
             pendingRender.detail = false;
         });
     }
 
-    function updateNetworkTable() {
-        if (!elements.networkTableBody) return;
+    function renderNetworks() {
+        if (!elements.networkList) return;
+
+        // Snapshot 2.4 GHz channel utilisation (use all networks, not filtered)
+        const snapshot = { timestamp: Date.now(), channels: {} };
+        for (let ch = 1; ch <= 11; ch++) snapshot.channels[ch] = 0;
+        Array.from(networks.values())
+            .filter(n => n.band && n.band.startsWith('2.4'))
+            .forEach(n => {
+                const ch = parseInt(n.channel);
+                if (ch >= 1 && ch <= 11) snapshot.channels[ch]++;
+            });
+        channelHistory.unshift(snapshot);
+        if (channelHistory.length > 10) channelHistory.pop();
 
         // Filter networks
         let filtered = Array.from(networks.values());
@@ -1162,97 +1162,104 @@ const WiFiMode = (function() {
         });
 
         if (filtered.length === 0) {
-            let message = 'Start scanning to discover networks';
-            let type = 'empty';
-            if (isScanning) {
-                message = 'Scanning for networks...';
-                type = 'loading';
-            } else if (networks.size > 0) {
-                message = 'No networks match current filters';
-            }
-            if (typeof renderCollectionState === 'function') {
-                renderCollectionState(elements.networkTableBody, {
-                    type,
-                    message,
-                    columns: 7,
-                });
-            } else {
-                elements.networkTableBody.innerHTML = `<tr class="wifi-network-placeholder"><td colspan="7"><div class="placeholder-text">${escapeHtml(message)}</div></td></tr>`;
-            }
+            let message = networks.size > 0
+                ? 'No networks match current filters'
+                : (isScanning ? 'Scanning for networks...' : 'Start scanning to discover networks');
+            elements.networkList.innerHTML = `<div class="wifi-network-placeholder"><p>${escapeHtml(message)}</p></div>`;
+            renderHeatmap();
+            renderSecurityRing(Array.from(networks.values()));
             return;
         }
 
-        // Render table
-        elements.networkTableBody.innerHTML = filtered.map(n => createNetworkRow(n)).join('');
+        // Render list
+        elements.networkList.innerHTML = filtered.map(n => createNetworkRow(n)).join('');
+
+        // Re-apply selected state after re-render
+        if (selectedBssid) {
+            const sel = elements.networkList.querySelector(`[data-bssid="${CSS.escape(selectedBssid)}"]`);
+            if (sel) sel.classList.add('selected');
+        }
+
+        renderHeatmap();
+        renderSecurityRing(Array.from(networks.values()));
     }
 
     function createNetworkRow(network) {
         const rssi = network.rssi_current;
         const security = network.security || 'Unknown';
-        const signalClass = rssi >= -50 ? 'signal-strong' :
-                           rssi >= -70 ? 'signal-medium' :
-                           rssi >= -85 ? 'signal-weak' : 'signal-very-weak';
 
-        const securityClass = security === 'Open' ? 'security-open' :
-                              security === 'WEP' ? 'security-wep' :
-                              security.includes('WPA3') ? 'security-wpa3' : 'security-wpa';
+        // Badge class
+        const sec = security.toLowerCase();
+        const badgeClass = sec === 'open' || sec === ''   ? 'open'
+                         : sec.includes('wpa3')            ? 'wpa3'
+                         : sec.includes('wpa')             ? 'wpa2'
+                         : sec.includes('wep')             ? 'wep'
+                         : 'unknown';
 
-        const hiddenBadge = network.is_hidden ? '<span class="badge badge-hidden">Hidden</span>' : '';
-        const newBadge = network.is_new ? '<span class="badge badge-new">New</span>' : '';
+        // Threat class (left border)
+        const threatClass = badgeClass === 'open' ? 'threat-open'
+                          : badgeClass === 'wpa2' || badgeClass === 'wpa3' ? 'threat-safe'
+                          : 'threat-hidden';
 
-        // Agent source badge
-        const agentName = network._agent || 'Local';
-        const agentClass = agentName === 'Local' ? 'agent-local' : 'agent-remote';
+        // Signal bar width + class
+        const pct = rssi != null ? Math.max(0, Math.min(100, (rssi + 100) / 80 * 100)) : 0;
+        const fillClass = rssi == null ? 'weak' : rssi > -55 ? 'strong' : rssi > -70 ? 'medium' : 'weak';
+
+        const displayName = escapeHtml(network.display_name || network.essid || '[Hidden]');
+        const isHidden = network.is_hidden;
+        const hiddenTag = isHidden ? '<span class="badge hidden-tag">HIDDEN</span>' : '';
 
         return `
-            <tr class="wifi-network-row ${network.bssid === selectedNetwork ? 'selected' : ''}"
-                data-bssid="${escapeHtml(network.bssid)}"
-                role="button"
-                tabindex="0"
-                data-keyboard-activate="true"
-                aria-label="Select network ${escapeHtml(network.display_name || network.essid || '[Hidden]')}">
-                <td class="col-essid">
-                    <span class="essid">${escapeHtml(network.display_name || network.essid || '[Hidden]')}</span>
-                    ${hiddenBadge}${newBadge}
-                </td>
-                <td class="col-bssid"><code>${escapeHtml(network.bssid)}</code></td>
-                <td class="col-channel">${network.channel || '-'}</td>
-                <td class="col-rssi">
-                    <span class="rssi-value ${signalClass}">${rssi != null ? rssi : '-'}</span>
-                </td>
-                <td class="col-security">
-                    <span class="security-badge ${securityClass}">${escapeHtml(security)}</span>
-                </td>
-                <td class="col-clients">${network.client_count || 0}</td>
-                <td class="col-agent">
-                    <span class="agent-badge ${agentClass}">${escapeHtml(agentName)}</span>
-                </td>
-            </tr>
+            <div class="network-row ${threatClass}"
+                 data-bssid="${escapeHtml(network.bssid)}"
+                 data-band="${escapeHtml(network.band || '')}"
+                 data-security="${escapeHtml(security)}"
+                 onclick="WiFiMode.selectNetwork(this.dataset.bssid)">
+                <div class="row-top">
+                    <span class="row-ssid${isHidden ? ' hidden-net' : ''}">${displayName}</span>
+                    <div class="row-badges">
+                        <span class="badge ${badgeClass}">${escapeHtml(security)}</span>
+                        ${hiddenTag}
+                    </div>
+                </div>
+                <div class="row-bottom">
+                    <div class="signal-bar-wrap">
+                        <div class="signal-track">
+                            <div class="signal-fill ${fillClass}" style="width:${pct.toFixed(1)}%"></div>
+                        </div>
+                    </div>
+                    <div class="row-meta">
+                        <span>ch ${network.channel || '?'}</span>
+                        <span>${network.client_count || 0} ↔</span>
+                        <span class="row-rssi">${rssi != null ? rssi : '?'}</span>
+                    </div>
+                </div>
+            </div>
         `;
     }
 
     function updateNetworkRow(network) {
         scheduleRender({
             table: true,
-            detail: selectedNetwork === network.bssid,
+            detail: selectedBssid === network.bssid,
         });
     }
 
     function selectNetwork(bssid) {
-        selectedNetwork = bssid;
+        selectedBssid = bssid;
 
-        // Update row selection
-        elements.networkTableBody?.querySelectorAll('.wifi-network-row').forEach(row => {
+        // Highlight selected row
+        elements.networkList?.querySelectorAll('.network-row').forEach(row => {
             row.classList.toggle('selected', row.dataset.bssid === bssid);
         });
 
-        // Update detail panel
-        updateDetailPanel(bssid);
+        // Show detail in right panel
+        if (elements.heatmapView) elements.heatmapView.style.display = 'none';
+        if (elements.detailView)  elements.detailView.style.display  = 'flex';
+        if (elements.rightPanelTitle) elements.rightPanelTitle.textContent = 'Network Detail';
+        if (elements.detailBackBtn)   elements.detailBackBtn.style.display = 'inline-block';
 
-        // Highlight on radar
-        if (typeof WiFiProximityRadar !== 'undefined') {
-            WiFiProximityRadar.highlightNetwork(bssid);
-        }
+        updateDetailPanel(bssid);
     }
 
     // ==========================================================================
@@ -1261,7 +1268,6 @@ const WiFiMode = (function() {
 
     function updateDetailPanel(bssid, options = {}) {
         const { refreshClients = true } = options;
-        if (!elements.detailDrawer) return;
 
         const network = networks.get(bssid);
         if (!network) {
@@ -1269,7 +1275,7 @@ const WiFiMode = (function() {
             return;
         }
 
-        // Update drawer header
+        // Update detail header
         if (elements.detailEssid) {
             elements.detailEssid.textContent = network.display_name || network.essid || '[Hidden SSID]';
         }
@@ -1303,8 +1309,12 @@ const WiFiMode = (function() {
             elements.detailFirstSeen.textContent = formatTime(network.first_seen);
         }
 
-        // Show the drawer
-        elements.detailDrawer.classList.add('open');
+        // Update signal bar
+        if (elements.detailSignalFill) {
+            const rssi = network.rssi_current;
+            const pct = rssi != null ? Math.max(0, Math.min(100, (rssi + 100) / 80 * 100)) : 0;
+            elements.detailSignalFill.style.width = pct.toFixed(1) + '%';
+        }
 
         // Fetch and display clients for this network
         if (refreshClients) {
@@ -1313,13 +1323,18 @@ const WiFiMode = (function() {
     }
 
     function closeDetail() {
-        selectedNetwork = null;
-        if (elements.detailDrawer) {
-            elements.detailDrawer.classList.remove('open');
-        }
-        elements.networkTableBody?.querySelectorAll('.wifi-network-row').forEach(row => {
+        selectedBssid = null;
+
+        // Deselect all rows
+        elements.networkList?.querySelectorAll('.network-row').forEach(row => {
             row.classList.remove('selected');
         });
+
+        // Restore heatmap in right panel
+        if (elements.detailView)  elements.detailView.style.display  = 'none';
+        if (elements.heatmapView) elements.heatmapView.style.display = 'flex';
+        if (elements.rightPanelTitle) elements.rightPanelTitle.textContent = 'Channel Heatmap';
+        if (elements.detailBackBtn)   elements.detailBackBtn.style.display = 'none';
     }
 
     // ==========================================================================
@@ -1436,14 +1451,14 @@ const WiFiMode = (function() {
 
     function updateClientInList(client) {
         // Check if this client belongs to the currently selected network
-        if (!selectedNetwork || client.associated_bssid !== selectedNetwork) {
+        if (!selectedBssid || client.associated_bssid !== selectedBssid) {
             return;
         }
 
         const container = elements.detailClientList?.querySelector('.wifi-client-list');
         if (!container) return;
 
-        const existingCard = container.querySelector(`[data-mac="${client.mac}"]`);
+        const existingCard = container.querySelector(`[data-mac="${CSS.escape(client.mac)}"]`);
 
         if (existingCard) {
             // Update existing card's RSSI and last seen
@@ -1464,7 +1479,7 @@ const WiFiMode = (function() {
             }
         } else {
             // New client for this network - re-fetch the full list
-            fetchClientsForNetwork(selectedNetwork);
+            fetchClientsForNetwork(selectedBssid);
         }
     }
 
@@ -1497,140 +1512,166 @@ const WiFiMode = (function() {
             else if (sec === 'open' || sec === '') securityCounts.open++;
         });
 
-        if (elements.wpa3Count) elements.wpa3Count.textContent = securityCounts.wpa3;
-        if (elements.wpa2Count) elements.wpa2Count.textContent = securityCounts.wpa2;
-        if (elements.wepCount) elements.wepCount.textContent = securityCounts.wep;
         if (elements.openCount) elements.openCount.textContent = securityCounts.open;
-
-        // Update zone summary
-        const zoneCounts = { immediate: 0, near: 0, far: 0 };
-        networksList.forEach(n => {
-            const rssi = n.rssi_current;
-            if (rssi >= -50) zoneCounts.immediate++;
-            else if (rssi >= -70) zoneCounts.near++;
-            else zoneCounts.far++;
-        });
-
-        if (elements.zoneImmediate) elements.zoneImmediate.textContent = zoneCounts.immediate;
-        if (elements.zoneNear) elements.zoneNear.textContent = zoneCounts.near;
-        if (elements.zoneFar) elements.zoneFar.textContent = zoneCounts.far;
     }
 
     // ==========================================================================
     // Proximity Radar
     // ==========================================================================
 
-    function initProximityRadar() {
-        if (!elements.proximityRadar) return;
-
-        // Initialize radar component
-        if (typeof ProximityRadar !== 'undefined') {
-            ProximityRadar.init('wifiProximityRadar', {
-                mode: 'wifi',
-                size: 280,
-                onDeviceClick: (bssid) => selectNetwork(bssid),
-            });
+    // Simple hash of BSSID string → stable angle in radians
+    function bssidToAngle(bssid) {
+        let hash = 0;
+        for (let i = 0; i < bssid.length; i++) {
+            hash = (hash * 31 + bssid.charCodeAt(i)) & 0xffffffff;
         }
+        return (hash >>> 0) / 0x100000000 * 2 * Math.PI;
     }
 
-    function updateProximityRadar() {
-        if (typeof ProximityRadar === 'undefined') return;
+    function renderRadar(networksList) {
+        const dotsGroup = document.getElementById('wifiRadarDots');
+        if (!dotsGroup) return;
 
-        // Convert networks to radar-compatible format
-        const devices = Array.from(networks.values()).map(n => ({
-            device_key: n.bssid,
-            device_id: n.bssid,
-            name: n.essid || '[Hidden]',
-            rssi_current: n.rssi_current,
-            rssi_ema: n.rssi_ema,
-            proximity_band: n.proximity_band,
-            estimated_distance_m: n.estimated_distance_m,
-            is_new: n.is_new,
-            heuristic_flags: n.heuristic_flags || [],
-        }));
+        const dots = [];
+        const zoneCounts = { immediate: 0, near: 0, far: 0 };
 
-        ProximityRadar.updateDevices(devices);
+        networksList.forEach(network => {
+            const rssi = network.rssi_current ?? -100;
+            const strength = Math.max(0, Math.min(1, (rssi + 100) / 80));
+            const dotR = 5 + (1 - strength) * 90; // stronger = closer to centre
+            const angle = bssidToAngle(network.bssid);
+            const cx = 105 + dotR * Math.cos(angle);
+            const cy = 105 + dotR * Math.sin(angle);
+
+            // Zone counts
+            if (dotR < 35)       zoneCounts.immediate++;
+            else if (dotR < 70)  zoneCounts.near++;
+            else                  zoneCounts.far++;
+
+            // Visual radius by zone
+            const vr = dotR < 35 ? 6 : dotR < 70 ? 4.5 : 3;
+
+            // Colour by security
+            const sec = (network.security || '').toLowerCase();
+            const colour = sec === 'open' || sec === '' ? '#e25d5d'
+                         : sec.includes('wpa')         ? '#38c180'
+                         : sec.includes('wep')         ? '#d6a85e'
+                         : '#484f58';
+
+            dots.push(`
+            <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${vr * 1.5}"
+                    fill="${colour}" opacity="0.12"/>
+            <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${vr}"
+                    fill="${colour}" opacity="0.9" filter="url(#wifi-glow-sm)"/>
+        `);
+        });
+
+        dotsGroup.innerHTML = dots.join('');
+
+        if (elements.zoneImmediate) elements.zoneImmediate.textContent = zoneCounts.immediate;
+        if (elements.zoneNear)      elements.zoneNear.textContent      = zoneCounts.near;
+        if (elements.zoneFar)       elements.zoneFar.textContent       = zoneCounts.far;
     }
 
     // ==========================================================================
     // Channel Chart
     // ==========================================================================
 
-    function initChannelChart() {
-        if (!elements.channelChart) return;
+    function initHeatmap() {
+        if (!elements.heatmapChLabels) return;
+        // Time-label placeholder + 11 channel labels
+        elements.heatmapChLabels.innerHTML =
+            '<div class="wifi-heatmap-ch-label"></div>' +
+            [1,2,3,4,5,6,7,8,9,10,11].map(ch =>
+                `<div class="wifi-heatmap-ch-label">${ch}</div>`
+            ).join('');
+    }
 
-        // Initialize channel chart component
-        if (typeof ChannelChart !== 'undefined') {
-            ChannelChart.init('wifiChannelChart');
+    function renderHeatmap() {
+        if (!elements.heatmapGrid) return;
+
+        if (channelHistory.length === 0) {
+            elements.heatmapGrid.innerHTML =
+                '<div class="wifi-heatmap-empty">Scan to populate channel history</div>';
+            if (elements.heatmapCount) elements.heatmapCount.textContent = '0';
+            return;
         }
 
-        // Band tabs
-        if (elements.channelBandTabs) {
-            elements.channelBandTabs.addEventListener('click', (e) => {
-                if (e.target.matches('.channel-band-tab')) {
-                    const band = e.target.dataset.band;
-                    elements.channelBandTabs.querySelectorAll('.channel-band-tab').forEach(t => {
-                        t.classList.toggle('active', t.dataset.band === band);
-                    });
-                    updateChannelChart(band);
-                }
+        if (elements.heatmapCount) elements.heatmapCount.textContent = channelHistory.length;
+
+        // Find max value for colour scale
+        let maxVal = 1;
+        channelHistory.forEach(snap => {
+            Object.values(snap.channels).forEach(v => { if (v > maxVal) maxVal = v; });
+        });
+
+        const rows = channelHistory.map((snap, i) => {
+            const timeLabel = i === 0 ? 'now' : '';
+            const cells = [1,2,3,4,5,6,7,8,9,10,11].map(ch => {
+                const v = snap.channels[ch] || 0;
+                return `<div class="wifi-heatmap-cell" style="background:${congestionColor(v, maxVal)}"></div>`;
             });
-        }
+            return `<div class="wifi-heatmap-time-label">${timeLabel}</div>${cells.join('')}`;
+        });
+
+        elements.heatmapGrid.innerHTML = rows.join('');
     }
 
-    function calculateChannelStats() {
-        // Calculate channel stats from current networks
-        const stats = {};
-        const networksList = Array.from(networks.values());
-
-        // Initialize all channels
-        // 2.4 GHz: channels 1-13
-        for (let ch = 1; ch <= 13; ch++) {
-            stats[ch] = { channel: ch, band: '2.4GHz', ap_count: 0, client_count: 0, utilization_score: 0 };
-        }
-        // 5 GHz: common channels
-        [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165].forEach(ch => {
-            stats[ch] = { channel: ch, band: '5GHz', ap_count: 0, client_count: 0, utilization_score: 0 };
-        });
-
-        // Count APs per channel
-        networksList.forEach(net => {
-            const ch = parseInt(net.channel);
-            if (stats[ch]) {
-                stats[ch].ap_count++;
-                stats[ch].client_count += (net.client_count || 0);
-            }
-        });
-
-        // Calculate utilization score (0-1)
-        const maxAPs = Math.max(1, ...Object.values(stats).map(s => s.ap_count));
-        Object.values(stats).forEach(s => {
-            s.utilization_score = s.ap_count / maxAPs;
-        });
-
-        return Object.values(stats).filter(s => s.ap_count > 0 || [1, 6, 11, 36, 40, 44, 48, 149, 153, 157, 161, 165].includes(s.channel));
+    function congestionColor(value, maxValue) {
+        if (value === 0 || maxValue === 0) return '#0d1117';
+        const ratio = value / maxValue;
+        if (ratio < 0.05)  return '#0d1117';
+        if (ratio < 0.25)  return `rgba(13,74,110,${(ratio * 4).toFixed(2)})`;
+        if (ratio < 0.5)   return `rgba(14,165,233,${ratio.toFixed(2)})`;
+        if (ratio < 0.75)  return `rgba(249,115,22,${ratio.toFixed(2)})`;
+        return                     `rgba(239,68,68,${ratio.toFixed(2)})`;
     }
 
-    function updateChannelChart(band) {
-        if (typeof ChannelChart === 'undefined') return;
+    function renderSecurityRing(networksList) {
+        const svg = elements.securityRingSvg;
+        const legend = elements.securityRingLegend;
+        if (!svg || !legend) return;
 
-        // Use the currently active band tab if no band specified
-        if (!band) {
-            const activeTab = elements.channelBandTabs && elements.channelBandTabs.querySelector('.channel-band-tab.active');
-            band = activeTab ? activeTab.dataset.band : '2.4';
-        }
+        const C = 2 * Math.PI * 15; // circumference ≈ 94.25
+        const sec = networksList.reduce((acc, n) => {
+            const s = (n.security || '').toLowerCase();
+            if (s.includes('wpa3'))       acc.wpa3++;
+            else if (s.includes('wpa'))   acc.wpa2++;
+            else if (s.includes('wep'))   acc.wep++;
+            else                          acc.open++;
+            return acc;
+        }, { wpa2: 0, open: 0, wpa3: 0, wep: 0 });
 
-        // Recalculate channel stats from networks if needed
-        if (channelStats.length === 0 && networks.size > 0) {
-            channelStats = calculateChannelStats();
-        }
+        const total = networksList.length || 1;
+        const segments = [
+            { label: 'WPA2', color: '#38c180', count: sec.wpa2 },
+            { label: 'Open', color: '#e25d5d', count: sec.open },
+            { label: 'WPA3', color: '#4aa3ff', count: sec.wpa3 },
+            { label: 'WEP',  color: '#d6a85e', count: sec.wep  },
+        ];
 
-        // Filter stats by band
-        const bandFilter = band === '2.4' ? '2.4GHz' : band === '5' ? '5GHz' : '6GHz';
-        const filteredStats = channelStats.filter(s => s.band === bandFilter);
-        const filteredRecs = recommendations.filter(r => r.band === bandFilter);
+        let offset = 0;
+        const arcs = segments.map(seg => {
+            const arcLen = (seg.count / total) * C;
+            const arc = `<circle cx="24" cy="24" r="15" fill="none"
+                stroke="${seg.color}" stroke-width="7"
+                stroke-dasharray="${arcLen.toFixed(2)} ${(C - arcLen).toFixed(2)}"
+                stroke-dashoffset="${(-offset).toFixed(2)}"
+                transform="rotate(-90 24 24)"/>`;
+            offset += arcLen;
+            return arc;
+        });
 
-        ChannelChart.update(filteredStats, filteredRecs);
+        svg.innerHTML = arcs.join('') +
+            '<circle cx="24" cy="24" r="9" fill="var(--bg-primary)"/>';
+
+        legend.innerHTML = segments.map(seg => `
+            <div class="wifi-security-ring-item">
+                <div class="wifi-security-ring-dot" style="background:${seg.color}"></div>
+                <span class="wifi-security-ring-name">${seg.label}</span>
+                <span class="wifi-security-ring-count">${seg.count}</span>
+            </div>
+        `).join('');
     }
 
     // ==========================================================================
@@ -1746,10 +1787,10 @@ const WiFiMode = (function() {
         probeRequests = [];
         channelStats = [];
         recommendations = [];
-        if (selectedNetwork) {
+        if (selectedBssid) {
             closeDetail();
         }
-        scheduleRender({ table: true, stats: true, radar: true, chart: true });
+        scheduleRender({ table: true, stats: true, radar: true });
     }
 
     /**
@@ -1796,10 +1837,10 @@ const WiFiMode = (function() {
             }
         });
         clientsToRemove.forEach(mac => clients.delete(mac));
-        if (selectedNetwork && !networks.has(selectedNetwork)) {
+        if (selectedBssid && !networks.has(selectedBssid)) {
             closeDetail();
         }
-        scheduleRender({ table: true, stats: true, radar: true, chart: true });
+        scheduleRender({ table: true, stats: true, radar: true });
     }
 
     /**

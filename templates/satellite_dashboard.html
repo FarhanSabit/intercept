@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}?v={{ version }}&r=maptheme17">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/help-modal.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/satellite_dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/core/map-utils.css') }}">
     <script>
         window.INTERCEPT_SHARED_OBSERVER_LOCATION = {{ shared_observer_location | tojson }};
     </script>
@@ -766,6 +767,7 @@
         let passes = [];
         let selectedPass = null;
         let groundMap = null;
+        let satMapOverlays = null;
         let satMarker = null;
         let trackLine = null;
         let observerMarker = null;
@@ -1906,103 +1908,35 @@
                 now.toISOString().substring(11, 19) + ' UTC';
         }
 
-        function createFallbackGridLayer() {
-            const layer = L.gridLayer({
-                tileSize: 256,
-                updateWhenIdle: true,
-                attribution: 'Local fallback grid'
-            });
-            layer.createTile = function(coords) {
-                const tile = document.createElement('canvas');
-                tile.width = 256;
-                tile.height = 256;
-                const ctx = tile.getContext('2d');
-
-                ctx.fillStyle = '#08121c';
-                ctx.fillRect(0, 0, 256, 256);
-
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(256, 0);
-                ctx.moveTo(0, 0);
-                ctx.lineTo(0, 256);
-                ctx.stroke();
-
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-                ctx.beginPath();
-                ctx.moveTo(128, 0);
-                ctx.lineTo(128, 256);
-                ctx.moveTo(0, 128);
-                ctx.lineTo(256, 128);
-                ctx.stroke();
-
-                ctx.fillStyle = 'rgba(160, 220, 255, 0.28)';
-                ctx.font = '11px "JetBrains Mono", monospace';
-                ctx.fillText(`Z${coords.z} X${coords.x} Y${coords.y}`, 12, 22);
-
-                return tile;
-            };
-            return layer;
-        }
-
-        async function upgradeGroundTilesFromSettings(fallbackTiles) {
-            if (typeof Settings === 'undefined' || !groundMap) return;
-
-            try {
-                await Settings.init();
-                if (!groundMap) return;
-
-                const configuredLayer = Settings.createTileLayer();
-                let tileLoaded = false;
-
-                configuredLayer.once('load', () => {
-                    tileLoaded = true;
-                    if (groundMap && fallbackTiles && groundMap.hasLayer(fallbackTiles)) {
-                        groundMap.removeLayer(fallbackTiles);
-                    }
-                    groundMap.invalidateSize(false);
-                });
-
-                configuredLayer.on('tileerror', () => {
-                    if (!tileLoaded) {
-                        console.warn('Satellite tile layer failed to load, keeping fallback grid');
-                    }
-                });
-
-                configuredLayer.addTo(groundMap);
-                Settings.registerMap(groundMap);
-            } catch (e) {
-                console.warn('Satellite: Settings/tile upgrade failed, using fallback grid:', e);
-            }
-        }
 
         async function initGroundMap() {
-            const container = document.getElementById('groundMap');
-            if (!container || container._leaflet_id) return;
+            const mapContainer = document.getElementById('groundMap');
+            if (!mapContainer || groundMap) return;
 
-            groundMap = L.map('groundMap', {
+            groundMap = MapUtils.init('groundMap', {
                 center: [20, 0],
-                zoom: 2,
+                zoom: 1,
                 minZoom: 1,
                 maxZoom: 10,
-                worldCopyJump: true
+                attributionControl: false,
             });
-
+            if (!groundMap) return;
             window.groundMap = groundMap;
 
-            // Use a zero-network fallback so dashboard navigation stays fast even
-            // when internet map providers are slow or unreachable.
-            const fallbackTiles = createFallbackGridLayer().addTo(groundMap);
+            satMapOverlays = MapUtils.addTacticalOverlays(groundMap, {
+                hudPanels: {
+                    modeName: 'SAT TRACK',
+                    getContactCount: () => 0,
+                },
+                scaleBar: true,
+            });
 
-            upgradeGroundTilesFromSettings(fallbackTiles);
+            // Add observer marker via reticle
+            const lat = parseFloat(document.getElementById('obsLat')?.value) || 51.5;
+            const lon = parseFloat(document.getElementById('obsLon')?.value) || -0.1;
+            observerMarker = MapUtils._buildReticle([lat, lon]);
+            observerMarker.addTo(groundMap);
 
-            const lat = parseFloat(document.getElementById('obsLat')?.value);
-            const lon = parseFloat(document.getElementById('obsLon')?.value);
-            if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
-                groundMap.setView([lat, lon], 3);
-            }
             requestAnimationFrame(() => groundMap?.invalidateSize(false));
             setTimeout(() => groundMap?.invalidateSize(false), 250);
             updateMapModeButtons();
@@ -2450,16 +2384,9 @@
                 }
             }
 
-            const obsIcon = L.divIcon({
-                className: 'obs-marker',
-                html: `<div style="width: 12px; height: 12px; background: #ff9500; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 15px #ff9500;"></div>`,
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
-            });
-
-            observerMarker = L.marker([lat, lon], { icon: obsIcon })
-                .addTo(groundMap)
-                .bindPopup(`<b>${locationLabel}</b><br>${lat.toFixed(4)}°, ${lon.toFixed(4)}°`);
+            observerMarker = MapUtils._buildReticle([lat, lon]);
+            observerMarker.addTo(groundMap);
+            observerMarker.bindPopup(`<b>${locationLabel}</b><br>${lat.toFixed(4)}°, ${lon.toFixed(4)}°`);
         }
 
         function updateStats() {
@@ -3163,6 +3090,7 @@
     <script src="{{ url_for('static', filename='js/core/cheat-sheets.js') }}"></script>
     {% include 'partials/nav-utility-modals.html' %}
     <script src="{{ url_for('static', filename='js/core/settings-manager.js') }}?v={{ version }}&r=maptheme17"></script>
+    <script src="{{ url_for('static', filename='js/map-utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/global-nav.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modes/ground_station_waterfall.js') }}"></script>
     <script>

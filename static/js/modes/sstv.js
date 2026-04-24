@@ -13,8 +13,10 @@ const SSTV = (function() {
     let issMap = null;
     let issMarker = null;
     let issTrackLine = null;
+    let issTrackPast = null;
     let issPosition = null;
     let issUpdateInterval = null;
+    let issTrackInterval = null;
     let countdownInterval = null;
     let nextPassData = null;
     let pendingMapInvalidate = false;
@@ -250,12 +252,19 @@ const SSTV = (function() {
         // Create ISS marker (will be positioned when we get data)
         issMarker = L.marker([0, 0], { icon: issIcon }).addTo(issMap);
 
-        // Create ground track line
+        // Past track (dimmer, solid)
+        issTrackPast = L.polyline([], {
+            color: '#00d4ff',
+            weight: 1.5,
+            opacity: 0.3,
+        }).addTo(issMap);
+
+        // Future track (brighter, dashed)
         issTrackLine = L.polyline([], {
             color: '#00d4ff',
             weight: 2,
-            opacity: 0.6,
-            dashArray: '5, 5'
+            opacity: 0.7,
+            dashArray: '6, 4'
         }).addTo(issMap);
 
         issMap.on('resize moveend zoomend', () => {
@@ -272,9 +281,12 @@ const SSTV = (function() {
      */
     function startIssTracking() {
         updateIssPosition();
-        // Update every 5 seconds
+        updateIssTrack();
         if (issUpdateInterval) clearInterval(issUpdateInterval);
         issUpdateInterval = setInterval(updateIssPosition, 5000);
+        // Track refreshes every 5 minutes — one orbit is ~93 min so this keeps it current
+        if (issTrackInterval) clearInterval(issTrackInterval);
+        issTrackInterval = setInterval(updateIssTrack, 5 * 60 * 1000);
     }
 
     /**
@@ -285,6 +297,52 @@ const SSTV = (function() {
             clearInterval(issUpdateInterval);
             issUpdateInterval = null;
         }
+        if (issTrackInterval) {
+            clearInterval(issTrackInterval);
+            issTrackInterval = null;
+        }
+    }
+
+    /**
+     * Fetch and render the ISS ground track from the backend (TLE-propagated).
+     */
+    async function updateIssTrack() {
+        try {
+            const response = await fetch('/sstv/iss-track');
+            const data = await response.json();
+            if (data.status !== 'ok' || !issTrackLine || !issTrackPast) return;
+
+            const pastPts = [], futurePts = [];
+            for (const pt of data.track) {
+                (pt.past ? pastPts : futurePts).push([pt.lat, pt.lon]);
+            }
+
+            // Split future track at antimeridian crossings to avoid long horizontal lines
+            const futureSegments = _splitAtAntimeridian(futurePts);
+            const pastSegments = _splitAtAntimeridian(pastPts);
+
+            issTrackLine.setLatLngs(futureSegments);
+            issTrackPast.setLatLngs(pastSegments);
+        } catch (err) {
+            console.error('Failed to fetch ISS track:', err);
+        }
+    }
+
+    /**
+     * Split an array of [lat, lon] points into segments at antimeridian crossings.
+     */
+    function _splitAtAntimeridian(points) {
+        const segments = [];
+        let current = [];
+        for (let i = 0; i < points.length; i++) {
+            if (i > 0 && Math.abs(points[i][1] - points[i - 1][1]) > 180) {
+                if (current.length > 1) segments.push(current);
+                current = [];
+            }
+            current.push(points[i]);
+        }
+        if (current.length > 1) segments.push(current);
+        return segments;
     }
 
     /**
@@ -486,55 +544,7 @@ const SSTV = (function() {
             issMarker.setLatLng([lat, lon]);
         }
 
-        // Calculate and draw ground track
-        if (issTrackLine) {
-            const trackPoints = [];
-            const inclination = 51.6; // ISS orbital inclination in degrees
-
-            // Generate orbit track points
-            for (let offset = -180; offset <= 180; offset += 3) {
-                let trackLon = lon + offset;
-
-                // Normalize longitude
-                while (trackLon > 180) trackLon -= 360;
-                while (trackLon < -180) trackLon += 360;
-
-                // Calculate latitude based on orbital inclination
-                const phase = (offset / 360) * 2 * Math.PI;
-                const currentPhase = Math.asin(Math.max(-1, Math.min(1, lat / inclination)));
-                let trackLat = inclination * Math.sin(phase + currentPhase);
-
-                // Clamp to valid range
-                trackLat = Math.max(-inclination, Math.min(inclination, trackLat));
-
-                trackPoints.push([trackLat, trackLon]);
-            }
-
-            // Split track at antimeridian to avoid line across map
-            const segments = [];
-            let currentSegment = [];
-
-            for (let i = 0; i < trackPoints.length; i++) {
-                if (i > 0) {
-                    const prevLon = trackPoints[i - 1][1];
-                    const currLon = trackPoints[i][1];
-                    if (Math.abs(currLon - prevLon) > 180) {
-                        // Crossed antimeridian
-                        if (currentSegment.length > 0) {
-                            segments.push(currentSegment);
-                        }
-                        currentSegment = [];
-                    }
-                }
-                currentSegment.push(trackPoints[i]);
-            }
-            if (currentSegment.length > 0) {
-                segments.push(currentSegment);
-            }
-
-            // Use only the longest segment or combine if needed
-            issTrackLine.setLatLngs(segments.length > 0 ? segments : []);
-        }
+        // Track is fetched separately by updateIssTrack() via /sstv/iss-track
 
         // Pan map to follow ISS only when the map pane is currently renderable.
         if (isMapContainerVisible()) {

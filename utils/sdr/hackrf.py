@@ -161,7 +161,9 @@ class HackRFCommandBuilder(CommandBuilder):
         device: SDRDevice,
         gain: float | None = None,
         bias_t: bool = False,
-        tcp_port: int = 10110
+        tcp_port: int = 10110,
+        udp_host: str | None = None,
+        udp_port: int | None = None,
     ) -> list[str]:
         """
         Build AIS-catcher command for AIS vessel tracking with HackRF.
@@ -183,6 +185,9 @@ class HackRFCommandBuilder(CommandBuilder):
 
         if bias_t:
             cmd.extend(['-gr', 'biastee', '1'])
+
+        if udp_host and udp_port:
+            cmd.extend(['-u', udp_host, str(udp_port)])
 
         return cmd
 

@@ -9,7 +9,8 @@ const Settings = {
         'offline.assets_source': 'local',
         'offline.fonts_source': 'local',
         'offline.tile_provider': 'cartodb_dark_cyan',
-        'offline.tile_server_url': ''
+        'offline.tile_server_url': '',
+        'offline.stadia_key': '',
     },
 
     // Tile provider configurations
@@ -42,7 +43,19 @@ const Settings = {
             url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
             subdomains: null
-        }
+        },
+        stadia_dark: {
+            url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+            attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            subdomains: null,
+            requiresKey: true,
+        },
+        tactical: {
+            url: 'https://tiles.stadiamaps.com/tiles/stamen_toner_background/{z}/{x}/{y}{r}.png',
+            attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>',
+            subdomains: null,
+            requiresKey: true,
+        },
     },
 
     // Registry of maps that can be updated
@@ -213,8 +226,12 @@ const Settings = {
     async _save(key, value) {
         this._cache[key] = value;
 
-        // Save to localStorage as backup
-        localStorage.setItem('intercept_settings', JSON.stringify(this._cache));
+        // Save to localStorage as backup (exclude sensitive keys)
+        const SENSITIVE_KEYS = ['offline.stadia_key'];
+        const toStore = Object.fromEntries(
+            Object.entries(this._cache).filter(([k]) => !SENSITIVE_KEYS.includes(k))
+        );
+        localStorage.setItem('intercept_settings', JSON.stringify(toStore));
 
         // Save to server
         try {
@@ -292,6 +309,13 @@ const Settings = {
             customRow.style.display = provider === 'custom' ? 'block' : 'none';
         }
 
+        // Show/hide Stadia API key row
+        const stadiaKeyRow = document.getElementById('stadiaKeyRow');
+        if (stadiaKeyRow) {
+            stadiaKeyRow.style.display =
+                (provider === 'stadia_dark' || provider === 'tactical') ? 'block' : 'none';
+        }
+
         // Update tiles immediately for all providers.
         this._updateMapTiles();
         const activeConfig = this.getTileConfig();
@@ -304,6 +328,15 @@ const Settings = {
      */
     async setCustomTileUrl(url) {
         await this._save('offline.tile_server_url', url);
+        this._updateMapTiles();
+    },
+
+    /**
+     * Save Stadia Maps API key and refresh tiles.
+     * @param {string} key
+     */
+    async setStadiaKey(key) {
+        await this._save('offline.stadia_key', (key || '').trim());
         this._updateMapTiles();
     },
 
@@ -322,15 +355,26 @@ const Settings = {
             };
         }
 
-        const config = this.tileProviders[provider] || this.tileProviders.cartodb_dark;
+        const baseConfig = this.tileProviders[provider] || this.tileProviders.cartodb_dark;
 
-        // Robust fallback: if dark Carto is active and Cyber is preferred,
-        // keep Cyber theme enabled even when provider temporarily reverts.
-        if (provider === 'cartodb_dark' && this._getMapThemePreference() === 'cyber') {
-            return { ...config, mapTheme: 'cyber' };
+        if (baseConfig.requiresKey) {
+            const key = (this.get('offline.stadia_key') || '').trim();
+            if (!key) {
+                // No key — fall back to CartoDB dark so the map isn't broken
+                return this.tileProviders.cartodb_dark;
+            }
+            return {
+                ...baseConfig,
+                url: baseConfig.url + '?api_key=' + encodeURIComponent(key),
+            };
         }
 
-        return config;
+        // Robust fallback: keep Cyber theme when CartoDB dark is active and Cyber preferred.
+        if (provider === 'cartodb_dark' && this._getMapThemePreference() === 'cyber') {
+            return { ...baseConfig, mapTheme: 'cyber' };
+        }
+
+        return baseConfig;
     },
 
     /**
@@ -641,6 +685,18 @@ const Settings = {
         const customRow = document.getElementById('customTileUrlRow');
         if (customRow) {
             customRow.style.display = this.get('offline.tile_provider') === 'custom' ? 'block' : 'none';
+        }
+
+        // Stadia key input
+        const stadiaKeyInput = document.getElementById('stadiaKeyInput');
+        if (stadiaKeyInput) {
+            stadiaKeyInput.value = this.get('offline.stadia_key') || '';
+        }
+        const stadiaKeyRow = document.getElementById('stadiaKeyRow');
+        if (stadiaKeyRow) {
+            const currentProvider = this.get('offline.tile_provider');
+            stadiaKeyRow.style.display =
+                (currentProvider === 'stadia_dark' || currentProvider === 'tactical') ? 'block' : 'none';
         }
 
         // Theme select

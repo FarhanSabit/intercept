@@ -134,7 +134,7 @@ def start_capture():
         {
             "satellite": "METEOR-M2-3", // Required: satellite key
             "device": 0,               // RTL-SDR device index (default: 0)
-            "gain": 40.0,              // SDR gain in dB (default: 40)
+            "gain": 30.0,              // SDR gain in dB (default: 30)
             "bias_t": false            // Enable bias-T for LNA (default: false)
         }
 
@@ -176,7 +176,7 @@ def start_capture():
     # Validate device index and gain
     try:
         device_index = validate_device_index(data.get('device', 0))
-        gain = validate_gain(data.get('gain', 40.0))
+        gain = validate_gain(data.get('gain', 30.0))
     except ValueError as e:
         logger.warning('Invalid parameter in start_capture: %s', e)
         return jsonify({
@@ -689,7 +689,7 @@ def enable_schedule():
             "longitude": -0.1,        // Required
             "min_elevation": 15,      // Minimum pass elevation (default: 15)
             "device": 0,              // RTL-SDR device index (default: 0)
-            "gain": 40.0,             // SDR gain (default: 40)
+            "gain": 30.0,             // SDR gain (default: 30)
             "bias_t": false           // Enable bias-T (default: false)
         }
 

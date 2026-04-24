@@ -77,6 +77,8 @@
                         <option value="openstreetmap">OpenStreetMap</option>
                         <option value="cartodb_light">CartoDB Positron</option>
                         <option value="esri_world">ESRI World Imagery</option>
+                        <option value="stadia_dark">Stadia Alidade Dark</option>
+                        <option value="tactical">Stadia Tactical (minimal)</option>
                         <option value="custom">Custom URL</option>
                     </select>
                 </div>
@@ -88,6 +90,15 @@
                         <input type="text" id="customTileUrl" class="settings-input"
                                placeholder="http://tile-server/{z}/{x}/{y}.png"
                                onchange="Settings.setCustomTileUrl(this.value)">
+                    </div>
+                </div>
+                <div class="settings-row" id="stadiaKeyRow" style="display: none;">
+                    <div class="settings-label" style="width: 100%;">
+                        <span class="settings-label-text">Stadia API Key</span>
+                        <span class="settings-label-desc">Free at <a href="https://client.stadiamaps.com/signup/" target="_blank" style="color: var(--accent-cyan);">stadiamaps.com</a></span>
+                        <input type="text" id="stadiaKeyInput" class="settings-input"
+                               placeholder="your-api-key-here"
+                               onchange="Settings.setStadiaKey(this.value)">
                     </div>
                 </div>
             </div>

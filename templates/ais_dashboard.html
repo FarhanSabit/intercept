@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/layout.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}?v={{ version }}&r=maptheme17">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/help-modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/core/map-utils.css') }}">
     <!-- Deferred scripts -->
     <script>
         window.INTERCEPT_SHARED_OBSERVER_LOCATION = {{ shared_observer_location | tojson }};
@@ -203,6 +204,7 @@
 
         // State
         let vesselMap = null;
+        let aisMapOverlays = null;
         let vessels = {};
         let markers = {};
         let selectedMmsi = null;
@@ -387,48 +389,6 @@
             15: 'Undefined'
         };
 
-        // Initialize map
-        function createFallbackGridLayer() {
-            const layer = L.gridLayer({
-                tileSize: 256,
-                updateWhenIdle: true,
-                attribution: 'Local fallback grid'
-            });
-            layer.createTile = function(coords) {
-                const tile = document.createElement('canvas');
-                tile.width = 256;
-                tile.height = 256;
-                const ctx = tile.getContext('2d');
-
-                ctx.fillStyle = '#07131c';
-                ctx.fillRect(0, 0, 256, 256);
-
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(256, 0);
-                ctx.moveTo(0, 0);
-                ctx.lineTo(0, 256);
-                ctx.stroke();
-
-                ctx.strokeStyle = 'rgba(34, 197, 94, 0.10)';
-                ctx.beginPath();
-                ctx.moveTo(128, 0);
-                ctx.lineTo(128, 256);
-                ctx.moveTo(0, 128);
-                ctx.lineTo(256, 128);
-                ctx.stroke();
-
-                ctx.fillStyle = 'rgba(160, 220, 255, 0.28)';
-                ctx.font = '11px "JetBrains Mono", monospace';
-                ctx.fillText(`Z${coords.z} X${coords.x} Y${coords.y}`, 12, 22);
-
-                return tile;
-            };
-            return layer;
-        }
-
         async function initMap() {
             // Guard against double initialization (e.g. bfcache restore)
             const container = document.getElementById('vesselMap');
@@ -439,34 +399,24 @@
                 document.getElementById('obsLon').value = observerLocation.lon;
             }
 
-            vesselMap = L.map('vesselMap', {
-                center: [observerLocation.lat, observerLocation.lon],
-                zoom: 10,
-                zoomControl: true
+            vesselMap = MapUtils.init('vesselMap', {
+                center: [observerLocation.lat || 51.5, observerLocation.lon || -0.1],
+                zoom: 6,
+                minZoom: 2,
+                maxZoom: 18,
             });
-
-            // Use settings manager for tile layer (allows runtime changes)
+            if (!vesselMap) return;
             window.vesselMap = vesselMap;
 
-            // Use a zero-network fallback so dashboard navigation stays fast even
-            // when internet map providers are slow or unreachable.
-            const fallbackTiles = createFallbackGridLayer().addTo(vesselMap);
+            setTimeout(() => { if (vesselMap) vesselMap.invalidateSize(); }, 200);
 
-            // Then try to upgrade tiles via Settings (non-blocking)
-            if (typeof Settings !== 'undefined') {
-                try {
-                    await Promise.race([
-                        Settings.init(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
-                    ]);
-                    vesselMap.removeLayer(fallbackTiles);
-                    Settings.createTileLayer().addTo(vesselMap);
-                    Settings.registerMap(vesselMap);
-                } catch (e) {
-                    console.warn('Settings init failed/timed out, using fallback tiles:', e);
-                    // fallback tiles already added above
-                }
-            }
+            aisMapOverlays = MapUtils.addTacticalOverlays(vesselMap, {
+                hudPanels: {
+                    modeName: 'AIS',
+                    getContactCount: () => Object.keys(vessels).length,
+                },
+                scaleBar: true,
+            });
 
             // Add observer marker
             observerMarker = L.circleMarker([observerLocation.lat, observerLocation.lon], {
@@ -794,6 +744,7 @@
             vessels[mmsi] = data;
             stats.totalVesselsSeen.add(mmsi);
             stats.messagesReceived++;
+            if (aisMapOverlays) aisMapOverlays.updateCount(Object.keys(vessels).length);
 
             // Update statistics
             if (data.speed && data.speed > stats.fastestSpeed) {
@@ -1637,6 +1588,7 @@
     <script src="{{ url_for('static', filename='js/core/cheat-sheets.js') }}"></script>
     {% include 'partials/nav-utility-modals.html' %}
     <script src="{{ url_for('static', filename='js/core/settings-manager.js') }}?v={{ version }}&r=maptheme17"></script>
+    <script src="{{ url_for('static', filename='js/map-utils.js') }}"></script>
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             if (typeof VoiceAlerts !== 'undefined') {

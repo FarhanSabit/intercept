@@ -19,12 +19,9 @@ from flask import Response, jsonify, request
 from data.tscm_frequencies import get_all_sweep_presets, get_sweep_preset
 from routes.tscm import (
     _baseline_recorder,
-    _current_sweep_id,
     _emit_event,
     _start_sweep_internal,
-    _sweep_running,
     tscm_bp,
-    tscm_queue,
 )
 from utils.database import get_tscm_sweep, update_tscm_sweep
 from utils.event_pipeline import process_event
@@ -58,6 +55,25 @@ def start_sweep():
     bt_interface = data.get('bt_interface', '')
     sdr_device = data.get('sdr_device')
 
+    # Validate custom frequency ranges if provided
+    custom_ranges = None
+    if sweep_type == 'custom':
+        raw_ranges = data.get('custom_ranges') or []
+        validated = []
+        for rng in raw_ranges:
+            try:
+                start = float(rng.get('start', 0))
+                end = float(rng.get('end', 0))
+                step = float(rng.get('step', 0.1))
+                if 0 < start < end <= 6000:
+                    validated.append({'start': start, 'end': end, 'step': step,
+                                      'name': rng.get('name') or f'{start:.0f}–{end:.0f} MHz'})
+            except (TypeError, ValueError):
+                pass
+        if not validated:
+            return jsonify({'status': 'error', 'message': 'custom sweep requires valid start/end MHz'}), 400
+        custom_ranges = validated
+
     result = _start_sweep_internal(
         sweep_type=sweep_type,
         baseline_id=baseline_id,
@@ -68,6 +84,7 @@ def start_sweep():
         bt_interface=bt_interface,
         sdr_device=sdr_device,
         verbose_results=verbose_results,
+        custom_ranges=custom_ranges,
     )
     http_status = result.pop('http_status', 200)
     return jsonify(result), http_status

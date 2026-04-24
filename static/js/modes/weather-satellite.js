@@ -1561,21 +1561,22 @@ const WeatherSat = (function() {
         const spans = labels.querySelectorAll('span');
         if (spans.length !== hours.length) return;
 
+        const tz = typeof InterceptTime !== 'undefined' ? InterceptTime.getTimezone() : 'UTC';
+        const ianaName = typeof InterceptTime !== 'undefined' ? InterceptTime.getIANA() : undefined;
+
         hours.forEach((h, i) => {
-            if (selectedTimezone === 'UTC' || selectedTimezone === 'local') {
-                spans[i].textContent = h === 24 ? '24:00' : `${String(h).padStart(2, '0')}:00`;
+            if (h === 24) {
+                spans[i].textContent = '24:00';
+                return;
+            }
+            if (tz === 'UTC' || tz === 'local') {
+                spans[i].textContent = `${String(h).padStart(2, '0')}:00`;
             } else {
-                // Show timezone-adjusted labels
                 const d = new Date();
                 d.setHours(h, 0, 0, 0);
-                const tz = TZ_MAP[selectedTimezone];
                 const opts = { hour: '2-digit', minute: '2-digit', hour12: false };
-                if (tz) opts.timeZone = tz;
-                if (h === 24) {
-                    spans[i].textContent = '24:00';
-                } else {
-                    spans[i].textContent = d.toLocaleTimeString(undefined, opts).slice(0, 5);
-                }
+                if (ianaName) opts.timeZone = ianaName;
+                spans[i].textContent = d.toLocaleTimeString(undefined, opts).slice(0, 5);
             }
         });
     }

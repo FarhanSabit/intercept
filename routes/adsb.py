@@ -79,6 +79,7 @@ adsb_bytes_received = 0
 adsb_lines_received = 0
 adsb_active_device = None  # Track which device index is being used
 adsb_active_sdr_type: str | None = None
+adsb_bias_t_active = False  # Track if bias-t was enabled at start (for cleanup on stop)
 _sbs_error_logged = False  # Suppress repeated connection error logs
 
 # Track ICAOs already looked up in aircraft database (avoid repeated lookups)
@@ -803,6 +804,41 @@ def adsb_status():
     })
 
 
+@adsb_bp.route('/aircraft')
+def adsb_aircraft_export():
+    """Export current ADS-B aircraft data as JSON.
+
+    Returns a snapshot of all tracked aircraft suitable for integration
+    with external tools. For SBS (BaseStation) format, connect directly
+    to port 30003 which dump1090 exposes natively.
+
+    Query parameters:
+        icao: Filter to a specific ICAO hex code (optional)
+        military: 'true' to return only military aircraft (optional)
+
+    Returns:
+        JSON with aircraft list and metadata.
+    """
+    aircraft = dict(app_module.adsb_aircraft)
+
+    icao_filter = request.args.get('icao', '').upper()
+    if icao_filter:
+        aircraft = {k: v for k, v in aircraft.items() if k.upper() == icao_filter}
+
+    if request.args.get('military') == 'true':
+        try:
+            from utils.military_icao import is_military_icao
+            aircraft = {k: v for k, v in aircraft.items() if is_military_icao(k)}
+        except ImportError:
+            pass
+
+    return jsonify({
+        'count': len(aircraft),
+        'aircraft': list(aircraft.values()),
+        'sbs_port': 30003,  # dump1090 SBS stream for tools like Virtual Radar Server
+    })
+
+
 @adsb_bp.route('/session')
 def adsb_session():
     """Get ADS-B session status and uptime."""
@@ -824,7 +860,7 @@ def adsb_session():
 @adsb_bp.route('/start', methods=['POST'])
 def start_adsb():
     """Start ADS-B tracking."""
-    global adsb_using_service, adsb_active_device, adsb_active_sdr_type
+    global adsb_using_service, adsb_active_device, adsb_active_sdr_type, adsb_bias_t_active
 
     with app_module.adsb_lock:
         if adsb_using_service:
@@ -956,6 +992,7 @@ def start_adsb():
 
     # Build ADS-B decoder command
     bias_t = data.get('bias_t', False)
+    adsb_bias_t_active = bias_t
     cmd = builder.build_adsb_command(
         device=sdr_device,
         gain=float(gain),
@@ -1104,7 +1141,7 @@ def start_adsb():
 @adsb_bp.route('/stop', methods=['POST'])
 def stop_adsb():
     """Stop ADS-B tracking."""
-    global adsb_using_service, adsb_active_device, adsb_active_sdr_type
+    global adsb_using_service, adsb_active_device, adsb_active_sdr_type, adsb_bias_t_active
     data = request.get_json(silent=True) or {}
     stop_source = data.get('source')
     stopped_by = request.remote_addr
@@ -1126,6 +1163,13 @@ def stop_adsb():
             app_module.adsb_process = None
             clear_dump1090_pid()
             logger.info("ADS-B process stopped")
+
+        # Turn off bias-T if it was enabled at start — the hardware register
+        # persists after the device is closed, so we must explicitly disable it.
+        if adsb_bias_t_active and (adsb_active_sdr_type or 'rtlsdr') == 'rtlsdr':
+            from utils.sdr.rtlsdr import disable_bias_t_via_rtl_biast
+            disable_bias_t_via_rtl_biast(adsb_active_device or 0)
+        adsb_bias_t_active = False
 
         # Release device from registry
         if adsb_active_device is not None:

@@ -66,6 +66,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/ux-platform.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/signal-waveform.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/core/map-utils.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modes/waterfall.css') }}?v={{ version }}&r=wfdeck19">
     <!-- Deferred scripts - Leaflet, Chart.js, observer-location -->
     <script defer src="{{ url_for('static', filename='js/core/observer-location.js') }}"></script>
@@ -834,15 +835,19 @@
                             <span class="wifi-status-label">Hidden:</span>
                             <span class="wifi-status-value" id="wifiHiddenCount">0</span>
                         </div>
-                        <div class="wifi-status-item" id="wifiScanStatus">
-                            <span class="wifi-status-indicator idle"></span>
-                            <span>Ready</span>
+                        <div class="wifi-status-item">
+                            <span class="wifi-status-label">Open:</span>
+                            <span class="wifi-status-value" id="wifiOpenCount" style="color:var(--accent-red);">0</span>
+                        </div>
+                        <div class="wifi-scan-indicator" id="wifiScanIndicator">
+                            <span class="wifi-scan-dot"></span>
+                            <span class="wifi-scan-text">IDLE</span>
                         </div>
                     </div>
 
                     <!-- Main Content: 3-column layout -->
                     <div class="wifi-main-content">
-                        <!-- LEFT: Networks Table -->
+                        <!-- LEFT: Networks List -->
                         <div class="wifi-networks-panel">
                             <div class="wifi-networks-header">
                                 <h5>Discovered Networks</h5>
@@ -853,39 +858,73 @@
                                     <button class="wifi-filter-btn" data-filter="open">Open</button>
                                     <button class="wifi-filter-btn" data-filter="hidden">Hidden</button>
                                 </div>
+                                <div class="wifi-sort-controls">
+                                    <span class="wifi-sort-label">Sort:</span>
+                                    <button class="wifi-sort-btn active" data-sort="rssi">Signal</button>
+                                    <button class="wifi-sort-btn" data-sort="essid">SSID</button>
+                                    <button class="wifi-sort-btn" data-sort="channel">Ch</button>
+                                </div>
                             </div>
                             <div class="wifi-networks-table-wrapper">
-                                <table class="wifi-networks-table" id="wifiNetworkTable">
-                                    <thead>
-                                        <tr>
-                                            <th class="sortable" data-sort="essid">SSID</th>
-                                            <th class="sortable" data-sort="bssid">BSSID</th>
-                                            <th class="sortable" data-sort="channel">Ch</th>
-                                            <th class="sortable" data-sort="rssi">Signal</th>
-                                            <th class="sortable" data-sort="security">Security</th>
-                                            <th class="sortable" data-sort="clients">Clients</th>
-                                            <th class="col-agent sortable" data-sort="agent">Source</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="wifiNetworkTableBody">
-                                        <tr class="wifi-network-placeholder">
-                                            <td colspan="7">
-                                                <div class="placeholder-text">Start scanning to discover networks</div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                                <div id="wifiNetworkList" class="wifi-network-list">
+                                    <div class="wifi-network-placeholder">
+                                        <p>No networks detected.<br>Start a scan to begin.</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <!-- CENTER: Proximity Radar -->
                         <div class="wifi-radar-panel">
                             <h5>Proximity Radar</h5>
-                            <div id="wifiProximityRadar" class="wifi-radar-container"></div>
+                            <div id="wifiProximityRadar" class="wifi-radar-container">
+                                <svg width="100%" viewBox="0 0 210 210" id="wifiRadarSvg">
+                                    <defs>
+                                        <clipPath id="wifi-radar-clip">
+                                            <circle cx="105" cy="105" r="100"/>
+                                        </clipPath>
+                                        <filter id="wifi-glow-sm">
+                                            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                        </filter>
+                                        <filter id="wifi-glow-md">
+                                            <feGaussianBlur stdDeviation="4" result="blur"/>
+                                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                        </filter>
+                                    </defs>
+
+                                    <!-- Background rings (static) -->
+                                    <circle cx="105" cy="105" r="100" fill="none" stroke="#00b4d8" stroke-width="0.5" opacity="0.12"/>
+                                    <circle cx="105" cy="105" r="70"  fill="none" stroke="#00b4d8" stroke-width="0.5" opacity="0.18"/>
+                                    <circle cx="105" cy="105" r="40"  fill="none" stroke="#00b4d8" stroke-width="0.5" opacity="0.25"/>
+                                    <circle cx="105" cy="105" r="15"  fill="none" stroke="#00b4d8" stroke-width="0.5" opacity="0.35"/>
+
+                                    <!-- Crosshairs -->
+                                    <line x1="5" y1="105" x2="205" y2="105" stroke="#00b4d8" stroke-width="0.3" opacity="0.1"/>
+                                    <line x1="105" y1="5" x2="105" y2="205" stroke="#00b4d8" stroke-width="0.3" opacity="0.1"/>
+
+                                    <!-- Rotating sweep group -->
+                                    <g class="wifi-radar-sweep" clip-path="url(#wifi-radar-clip)">
+                                        <!-- Primary trailing arc: 60° -->
+                                        <path d="M105,105 L105,5 A100,100 0 0,1 191.6,155 Z" fill="#00b4d8" opacity="0.08"/>
+                                        <!-- Secondary trailing arc: 90° -->
+                                        <path d="M105,105 L105,5 A100,100 0 0,1 205,105 Z" fill="#00b4d8" opacity="0.04"/>
+                                        <!-- Sweep line -->
+                                        <line x1="105" y1="105" x2="105" y2="5" stroke="#00b4d8" stroke-width="1.5" opacity="0.7"
+                                              filter="url(#wifi-glow-sm)"/>
+                                    </g>
+
+                                    <!-- Centre dot -->
+                                    <circle cx="105" cy="105" r="3" fill="#00b4d8" opacity="0.8"/>
+
+                                    <!-- Network dots (managed by renderRadar()) -->
+                                    <g id="wifiRadarDots"></g>
+                                </svg>
+                            </div>
                             <div class="wifi-zone-summary">
                                 <div class="wifi-zone near">
                                     <span class="wifi-zone-count" id="wifiZoneImmediate">0</span>
-                                    <span class="wifi-zone-label">Near</span>
+                                    <span class="wifi-zone-label">Close</span>
                                 </div>
                                 <div class="wifi-zone mid">
                                     <span class="wifi-zone-count" id="wifiZoneNear">0</span>
@@ -898,95 +937,104 @@
                             </div>
                         </div>
 
-                        <!-- RIGHT: Channel Analysis + Security -->
+                        <!-- RIGHT: Channel Heatmap + Security Ring -->
                         <div class="wifi-analysis-panel">
-                            <div class="wifi-channel-section">
-                                <h5>Channel Analysis</h5>
-                                <div class="wifi-channel-tabs" id="wifiChannelBandTabs">
-                                    <button class="channel-band-tab active" data-band="2.4">2.4 GHz</button>
-                                    <button class="channel-band-tab" data-band="5">5 GHz</button>
-                                </div>
-                                <div id="wifiChannelChart" class="wifi-channel-chart"></div>
+                            <div class="wifi-analysis-panel-header">
+                                <span class="panel-title" id="wifiRightPanelTitle">Channel Heatmap</span>
+                                <button class="wifi-detail-back-btn" id="wifiDetailBackBtn"
+                                        style="display:none" onclick="WiFiMode.closeDetail()">← Back</button>
                             </div>
-                            <div class="wifi-security-section">
-                                <h5>Security Overview</h5>
-                                <div class="wifi-security-stats">
-                                    <div class="wifi-security-item wpa3">
-                                        <span class="wifi-security-dot"></span>
-                                        <span>WPA3</span>
-                                        <span class="wifi-security-count" id="wpa3Count">0</span>
-                                    </div>
-                                    <div class="wifi-security-item wpa2">
-                                        <span class="wifi-security-dot"></span>
-                                        <span>WPA2</span>
-                                        <span class="wifi-security-count" id="wpa2Count">0</span>
-                                    </div>
-                                    <div class="wifi-security-item wep">
-                                        <span class="wifi-security-dot"></span>
-                                        <span>WEP</span>
-                                        <span class="wifi-security-count" id="wepCount">0</span>
-                                    </div>
-                                    <div class="wifi-security-item open">
-                                        <span class="wifi-security-dot"></span>
-                                        <span>Open</span>
-                                        <span class="wifi-security-count" id="openCount">0</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- Detail Drawer (slides up on network selection) -->
-                    <div class="wifi-detail-drawer" id="wifiDetailDrawer">
-                        <div class="wifi-detail-header">
-                            <div class="wifi-detail-title">
-                                <span class="wifi-detail-essid" id="wifiDetailEssid">Network Name</span>
-                                <span class="wifi-detail-bssid" id="wifiDetailBssid">00:00:00:00:00:00</span>
-                            </div>
-                            <button class="wfl-locate-btn" onclick="(function(){ var p={bssid: document.getElementById('wifiDetailBssid')?.textContent, ssid: document.getElementById('wifiDetailEssid')?.textContent}; if(typeof WiFiLocate!=='undefined'){WiFiLocate.handoff(p);return;} if(typeof switchMode==='function'){switchMode('wifi_locate').then(function(){if(typeof WiFiLocate!=='undefined')WiFiLocate.handoff(p);});} })()" title="Locate this AP">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/></svg>
-                                Locate
-                            </button>
-                            <button class="wifi-detail-close" onclick="WiFiMode.closeDetail()">&times;</button>
-                        </div>
-                        <div class="wifi-detail-content" id="wifiDetailContent">
-                            <div class="wifi-detail-grid">
-                                <div class="wifi-detail-stat">
-                                    <span class="label">Signal</span>
-                                    <span class="value" id="wifiDetailRssi">--</span>
+                            <!-- Default: heatmap + security ring -->
+                            <div id="wifiHeatmapView" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+                                <div class="wifi-heatmap-wrap">
+                                    <div class="wifi-heatmap-label">
+                                        2.4 GHz · Last <span id="wifiHeatmapCount">0</span> scans
+                                    </div>
+                                    <div class="wifi-heatmap-ch-labels" id="wifiHeatmapChLabels">
+                                        <!-- 11 channel labels (1–11), generated once by JS -->
+                                    </div>
+                                    <div class="wifi-heatmap-grid" id="wifiHeatmapGrid"></div>
+                                    <div class="wifi-heatmap-legend">
+                                        <span>Low</span>
+                                        <div class="wifi-heatmap-legend-grad"></div>
+                                        <span>High</span>
+                                    </div>
                                 </div>
-                                <div class="wifi-detail-stat">
-                                    <span class="label">Channel</span>
-                                    <span class="value" id="wifiDetailChannel">--</span>
-                                </div>
-                                <div class="wifi-detail-stat">
-                                    <span class="label">Band</span>
-                                    <span class="value" id="wifiDetailBand">--</span>
-                                </div>
-                                <div class="wifi-detail-stat">
-                                    <span class="label">Security</span>
-                                    <span class="value" id="wifiDetailSecurity">--</span>
-                                </div>
-                                <div class="wifi-detail-stat">
-                                    <span class="label">Cipher</span>
-                                    <span class="value" id="wifiDetailCipher">--</span>
-                                </div>
-                                <div class="wifi-detail-stat">
-                                    <span class="label">Vendor</span>
-                                    <span class="value" id="wifiDetailVendor">--</span>
-                                </div>
-                                <div class="wifi-detail-stat">
-                                    <span class="label">Clients</span>
-                                    <span class="value" id="wifiDetailClients">--</span>
-                                </div>
-                                <div class="wifi-detail-stat">
-                                    <span class="label">First Seen</span>
-                                    <span class="value" id="wifiDetailFirstSeen">--</span>
+                                <div class="wifi-security-ring-wrap">
+                                    <svg id="wifiSecurityRingSvg" viewBox="0 0 48 48" width="48" height="48">
+                                        <circle cx="24" cy="24" r="9" fill="var(--bg-primary)"/>
+                                    </svg>
+                                    <div class="wifi-security-ring-legend" id="wifiSecurityRingLegend"></div>
                                 </div>
                             </div>
-                            <div class="wifi-detail-clients" id="wifiDetailClientList" style="display: none;">
-                                <h6>Connected Clients <span class="wifi-client-count-badge" id="wifiClientCountBadge"></span></h6>
-                                <div class="wifi-client-list"></div>
+
+                            <!-- On network click: detail panel (wired in Task 5) -->
+                            <div id="wifiDetailView" style="display:none; flex:1; overflow-y:auto;">
+                                <div class="wifi-detail-inner">
+                                    <div class="wifi-detail-head">
+                                        <div class="wifi-detail-essid" id="wifiDetailEssid">—</div>
+                                        <div class="wifi-detail-bssid" id="wifiDetailBssid">—</div>
+                                    </div>
+
+                                    <div class="wifi-detail-signal-bar">
+                                        <div class="wifi-detail-signal-labels">
+                                            <span>Signal</span>
+                                            <span id="wifiDetailRssi">—</span>
+                                        </div>
+                                        <div class="wifi-detail-signal-track">
+                                            <div class="wifi-detail-signal-fill" id="wifiDetailSignalFill" style="width:0%"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="wifi-detail-grid">
+                                        <div class="wifi-detail-stat">
+                                            <span class="label">Channel</span>
+                                            <span class="value" id="wifiDetailChannel">—</span>
+                                        </div>
+                                        <div class="wifi-detail-stat">
+                                            <span class="label">Band</span>
+                                            <span class="value" id="wifiDetailBand">—</span>
+                                        </div>
+                                        <div class="wifi-detail-stat">
+                                            <span class="label">Security</span>
+                                            <span class="value" id="wifiDetailSecurity">—</span>
+                                        </div>
+                                        <div class="wifi-detail-stat">
+                                            <span class="label">Cipher</span>
+                                            <span class="value" id="wifiDetailCipher">—</span>
+                                        </div>
+                                        <div class="wifi-detail-stat">
+                                            <span class="label">Clients</span>
+                                            <span class="value" id="wifiDetailClients">—</span>
+                                        </div>
+                                        <div class="wifi-detail-stat">
+                                            <span class="label">First Seen</span>
+                                            <span class="value" id="wifiDetailFirstSeen">—</span>
+                                        </div>
+                                        <div class="wifi-detail-stat" style="grid-column: 1 / -1;">
+                                            <span class="label">Vendor</span>
+                                            <span class="value" id="wifiDetailVendor" style="font-size:11px;">—</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="wifi-detail-clients" id="wifiDetailClientList" style="display: none;">
+                                        <h6>Connected Clients <span class="wifi-client-count-badge" id="wifiClientCountBadge"></span></h6>
+                                        <div class="wifi-client-list"></div>
+                                    </div>
+
+                                    <div class="wifi-detail-actions">
+                                        <button class="wfl-locate-btn" title="Locate this AP"
+                                            onclick="(function(){ var p={bssid: document.getElementById('wifiDetailBssid')?.textContent, ssid: document.getElementById('wifiDetailEssid')?.textContent}; if(typeof WiFiLocate!=='undefined'){WiFiLocate.handoff(p);return;} if(typeof switchMode==='function'){switchMode('wifi_locate').then(function(){if(typeof WiFiLocate!=='undefined')WiFiLocate.handoff(p);});} })()">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="10" r="3"/>
+                                                <path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/>
+                                            </svg>
+                                            Locate
+                                        </button>
+                                        <button class="wifi-detail-close-btn" onclick="WiFiMode.closeDetail()">Close</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1139,6 +1187,10 @@
                         <div class="wifi-device-list-header">
                             <h5>Bluetooth Devices</h5>
                             <span class="device-count">(<span id="btDeviceListCount">0</span>)</span>
+                            <div class="bt-scan-indicator" id="btScanIndicator">
+                                <span class="bt-scan-dot" style="display:none;"></span>
+                                <span class="bt-scan-text">IDLE</span>
+                            </div>
                         </div>
                         <div class="bt-list-summary" id="btListSummary">
                             <div class="bt-summary-item">
@@ -1178,15 +1230,24 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="bt-controls-row">
+                            <div class="bt-sort-group" id="btSortGroup">
+                                <span class="bt-sort-label">Sort</span>
+                                <button class="bt-sort-btn active" data-sort="rssi">Signal</button>
+                                <button class="bt-sort-btn" data-sort="name">Name</button>
+                                <button class="bt-sort-btn" data-sort="seen">Seen</button>
+                                <button class="bt-sort-btn" data-sort="distance">Dist</button>
+                            </div>
+                            <div class="bt-filter-group" id="btFilterGroup">
+                                <button class="bt-filter-btn active" data-filter="all">All</button>
+                                <button class="bt-filter-btn" data-filter="new">New</button>
+                                <button class="bt-filter-btn" data-filter="named">Named</button>
+                                <button class="bt-filter-btn" data-filter="strong">Strong</button>
+                                <button class="bt-filter-btn" data-filter="trackers">Trackers</button>
+                            </div>
+                        </div>
                         <div class="bt-device-toolbar">
                             <input type="search" id="btDeviceSearch" class="bt-device-search" placeholder="Filter by name, MAC, manufacturer...">
-                        </div>
-                        <div class="bt-device-filters" id="btDeviceFilters">
-                            <button class="bt-filter-btn active" data-filter="all">All</button>
-                            <button class="bt-filter-btn" data-filter="new">New</button>
-                            <button class="bt-filter-btn" data-filter="named">Named</button>
-                            <button class="bt-filter-btn" data-filter="strong">Strong</button>
-                            <button class="bt-filter-btn" data-filter="trackers">Trackers</button>
                         </div>
                         <div class="wifi-device-list-content" id="btDeviceListContent">
                             <div class="app-collection-state is-empty">Start scanning to discover Bluetooth devices</div>
@@ -4190,6 +4251,9 @@
             // Initialize dropdown nav active state
             updateDropdownActiveState();
 
+            // Restore nav group open/closed state from localStorage
+            initNavGroupState();
+
             // Start SDR device status polling
             startSdrStatusPolling();
 
@@ -4217,6 +4281,45 @@
             if (!isOpen) {
                 dropdown.classList.add('open');
             }
+            saveNavGroupState();
+        }
+
+        function initNavGroupState() {
+            const NAV_STATE_KEY = 'intercept_nav_groups';
+            let savedState = {};
+            try {
+                savedState = JSON.parse(localStorage.getItem(NAV_STATE_KEY) || '{}');
+            } catch (e) {
+                savedState = {};
+            }
+
+            document.querySelectorAll('.mode-nav-dropdown[data-group]').forEach(dropdown => {
+                const group = dropdown.dataset.group;
+                // If saved state says closed AND this group has no active item, close it
+                if (savedState[group] === false) {
+                    const hasActive = dropdown.classList.contains('has-active');
+                    if (!hasActive) {
+                        dropdown.classList.remove('open');
+                        const btn = dropdown.querySelector('.mode-nav-dropdown-btn');
+                        if (btn) btn.setAttribute('aria-expanded', 'false');
+                    }
+                } else if (savedState[group] === true) {
+                    dropdown.classList.add('open');
+                    const btn = dropdown.querySelector('.mode-nav-dropdown-btn');
+                    if (btn) btn.setAttribute('aria-expanded', 'true');
+                }
+            });
+        }
+
+        function saveNavGroupState() {
+            const NAV_STATE_KEY = 'intercept_nav_groups';
+            const state = {};
+            document.querySelectorAll('.mode-nav-dropdown[data-group]').forEach(dropdown => {
+                state[dropdown.dataset.group] = dropdown.classList.contains('open');
+            });
+            try {
+                localStorage.setItem(NAV_STATE_KEY, JSON.stringify(state));
+            } catch (e) { /* storage full or unavailable */ }
         }
 
         function closeAllDropdowns() {
@@ -5369,8 +5472,11 @@
                         // Clear existing output
                         output.innerHTML = '<div class="placeholder signal-empty-state" style="display: none;"></div>';
                     } else {
-                        alert('Error: ' + data.message);
+                        showInfo('Error: ' + (data.message || 'Failed to start sensor'));
                     }
+                })
+                .catch(err => {
+                    showInfo('Error starting sensor: ' + err.message);
                 });
         }
 
@@ -5608,8 +5714,8 @@
 
             // Keep list manageable
             const cards = output.querySelectorAll('.signal-card');
-            while (cards.length > 100) {
-                output.removeChild(output.lastChild);
+            for (let i = cards.length - 1; i >= 100; i--) {
+                cards[i].remove();
             }
         }
 
@@ -5892,14 +5998,8 @@
 
             // Limit to max 50 unique meters (cards won't pile up since we update in place)
             const cards = output.querySelectorAll('.signal-card.meter-aggregated');
-            while (cards.length > 50) {
-                // Remove oldest card (last one)
-                const oldestCard = output.querySelector('.signal-card.meter-aggregated:last-of-type');
-                if (oldestCard) {
-                    output.removeChild(oldestCard);
-                } else {
-                    break;
-                }
+            for (let i = cards.length - 1; i >= 50; i--) {
+                cards[i].remove();
             }
         }
 
@@ -6123,8 +6223,8 @@
             'rtlsdr': { name: 'RTL-SDR', freq_min: 24, freq_max: 1766, gain_min: 0, gain_max: 50 },
             'sdrplay': { name: 'SDRplay', freq_min: 0.001, freq_max: 2000, gain_min: 0, gain_max: 59 },
             'limesdr': { name: 'LimeSDR', freq_min: 0.1, freq_max: 3800, gain_min: 0, gain_max: 73 },
-            'hackrf': { name: 'HackRF', freq_min: 1, freq_max: 6000, gain_min: 0, gain_max: 62 },
-            'airspy': { name: 'Airspy', freq_min: 24, freq_max: 1800, gain_min: 0, gain_max: 21 }
+            'hackrf': { name: 'HackRF', freq_min: 1, freq_max: 6000, gain_min: 0, gain_max: 102 }, // LNA(40)+VGA(62)
+            'airspy': { name: 'Airspy', freq_min: 24, freq_max: 1800, gain_min: 0, gain_max: 45 }  // LNA(15)+Mix(15)+VGA(15)
         };
 
         // Current device list with SDR type info
@@ -6253,6 +6353,12 @@
             if (caps) {
                 document.getElementById('capFreqRange').textContent = `${caps.freq_min}-${caps.freq_max} MHz`;
                 document.getElementById('capGainRange').textContent = `${caps.gain_min}-${caps.gain_max} dB`;
+                // Update max attribute on all mode gain inputs so constraints match the SDR
+                const gainMax = caps.gain_max;
+                ['gain', 'sensorGain', 'aisGainInput', 'acarsGainInput', 'aprsStripGain', 'weatherSatGain'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.max = gainMax;
+                });
             }
         }
 
@@ -6374,6 +6480,14 @@
         function saveBiasTSetting() {
             const enabled = document.getElementById('biasT')?.checked || false;
             localStorage.setItem('biasTEnabled', enabled);
+            // Warn if any SDR mode is currently running — bias-T is applied at
+            // start time and cannot be toggled on a running device.
+            const anyRunning = isRunning || isSensorRunning
+                || (typeof isAdsbRunning !== 'undefined' && isAdsbRunning)
+                || (typeof isAisRunning !== 'undefined' && isAisRunning);
+            if (anyRunning) {
+                showInfo('Bias-T change will take effect after restarting the active SDR mode');
+            }
         }
 
         function getBiasTEnabled() {
@@ -7077,8 +7191,8 @@
 
             // Limit messages displayed (keep placeholder/empty-state)
             const cards = output.querySelectorAll('.signal-card');
-            while (cards.length > 100) {
-                output.removeChild(cards[cards.length - 1]);
+            for (let i = cards.length - 1; i >= 100; i--) {
+                cards[i].remove();
             }
         }
 
@@ -7442,7 +7556,7 @@
 
             // Limit displayed devices
             while (content.children.length > 50) {
-                content.removeChild(content.lastChild);
+                content.lastElementChild.remove();
             }
         }
 
@@ -9961,6 +10075,7 @@
         // APRS Functions
         // ============================================
         let aprsMap = null;
+        let aprsMapOverlays = null;
         let aprsMarkers = {};
         let aprsEventSource = null;
         let isAprsRunning = false;
@@ -10112,47 +10227,6 @@
                 });
         }
 
-        function createAprsFallbackGridLayer() {
-            const layer = L.gridLayer({
-                tileSize: 256,
-                updateWhenIdle: true,
-                attribution: 'Local fallback grid'
-            });
-            layer.createTile = function(coords) {
-                const tile = document.createElement('canvas');
-                tile.width = 256;
-                tile.height = 256;
-                const ctx = tile.getContext('2d');
-
-                ctx.fillStyle = '#08121c';
-                ctx.fillRect(0, 0, 256, 256);
-
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(256, 0);
-                ctx.moveTo(0, 0);
-                ctx.lineTo(0, 256);
-                ctx.stroke();
-
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-                ctx.beginPath();
-                ctx.moveTo(128, 0);
-                ctx.lineTo(128, 256);
-                ctx.moveTo(0, 128);
-                ctx.lineTo(256, 128);
-                ctx.stroke();
-
-                ctx.fillStyle = 'rgba(160, 220, 255, 0.28)';
-                ctx.font = '11px "JetBrains Mono", monospace';
-                ctx.fillText(`Z${coords.z} X${coords.x} Y${coords.y}`, 12, 22);
-
-                return tile;
-            };
-            return layer;
-        }
-
         async function initAprsMap() {
             if (aprsMap) return;
 
@@ -10181,26 +10255,18 @@
             const initialLon = hasUserLocation ? aprsUserLocation.lon : (hasGpsLocation ? gpsLon : -98.5795);
             const initialZoom = (hasUserLocation || hasGpsLocation) ? 8 : 4;
 
-            aprsMap = L.map('aprsMap').setView([initialLat, initialLon], initialZoom);
+            aprsMap = MapUtils.init('aprsMap', {
+                center: [initialLat, initialLon],
+                zoom: initialZoom,
+                minZoom: 2,
+                maxZoom: 18,
+            });
+            if (!aprsMap) return;
             window.aprsMap = aprsMap;
 
-            // Zero-network fallback so mode switches never block on external tiles.
-            const fallbackTiles = createAprsFallbackGridLayer().addTo(aprsMap);
-
-            // Upgrade tiles in background via Settings (with timeout fallback)
-            if (typeof Settings !== 'undefined') {
-                try {
-                    await Promise.race([
-                        Settings.init(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
-                    ]);
-                    aprsMap.removeLayer(fallbackTiles);
-                    Settings.createTileLayer().addTo(aprsMap);
-                    Settings.registerMap(aprsMap);
-                } catch (e) {
-                    console.warn('APRS: Settings init failed/timed out, using fallback tiles:', e);
-                }
-            }
+            aprsMapOverlays = MapUtils.addTacticalOverlays(aprsMap, {
+                scaleBar: true,
+            });
 
             // Add user marker if GPS position is already available
             if (gpsConnected && hasGpsLocation) {
@@ -10243,6 +10309,7 @@
                 } catch (_) {}
                 aprsMap = null;
                 window.aprsMap = null;
+                aprsMapOverlays = null;
             }
             aprsMarkers = {};
             aprsUserMarker = null;
@@ -10729,7 +10796,7 @@
 
             // Keep log manageable
             while (logEl.children.length > 100) {
-                logEl.removeChild(logEl.lastChild);
+                logEl.lastElementChild.remove();
             }
 
             // Update map if position data
@@ -11302,6 +11369,7 @@
 
         // Ground Track Map
         let groundTrackMap = null;
+        let gpsMapOverlays = null;
         let groundTrackLine = null;
         let satMarker = null;
         let observerMarker = null;
@@ -11311,47 +11379,24 @@
             const mapContainer = document.getElementById('groundTrackMap');
             if (!mapContainer || groundTrackMap) return;
 
-            groundTrackMap = L.map('groundTrackMap', {
+            groundTrackMap = MapUtils.init('groundTrackMap', {
                 center: [20, 0],
                 zoom: 1,
                 zoomControl: true,
-                attributionControl: false
+                attributionControl: false,
             });
+            if (!groundTrackMap) return;
             window.groundTrackMap = groundTrackMap;
 
-            // Add fallback tiles immediately so the map is visible instantly
-            const fallbackTiles = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-                maxZoom: 19,
-                subdomains: 'abcd',
-                className: 'tile-layer-cyan'
-            }).addTo(groundTrackMap);
+            gpsMapOverlays = MapUtils.addTacticalOverlays(groundTrackMap, {
+                scaleBar: true,
+            });
 
-            // Upgrade tiles in background via Settings (with timeout fallback)
-            if (typeof Settings !== 'undefined') {
-                try {
-                    await Promise.race([
-                        Settings.init(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('Settings timeout')), 5000))
-                    ]);
-                    groundTrackMap.removeLayer(fallbackTiles);
-                    Settings.createTileLayer().addTo(groundTrackMap);
-                    Settings.registerMap(groundTrackMap);
-                } catch (e) {
-                    console.warn('Ground track: Settings init failed/timed out, using fallback tiles:', e);
-                }
-            }
-
-            // Add observer marker
-            const lat = parseFloat(document.getElementById('obsLat').value) || 51.5;
-            const lon = parseFloat(document.getElementById('obsLon').value) || -0.1;
-            observerMarker = L.circleMarker([lat, lon], {
-                radius: 8,
-                fillColor: '#ff6600',
-                color: '#fff',
-                weight: 2,
-                fillOpacity: 1
-            }).addTo(groundTrackMap).bindPopup('Observer Location');
+            // Observer crosshair via MapUtils
+            const obsLat = parseFloat(document.getElementById('obsLat')?.value) || 51.5;
+            const obsLon = parseFloat(document.getElementById('obsLon')?.value) || -0.1;
+            observerMarker = MapUtils._buildReticle([obsLat, obsLon]);
+            observerMarker.addTo(groundTrackMap);
         }
 
         function updateGroundTrack(pass) {
@@ -12110,6 +12155,12 @@
         async function startTscmSweep() {
             const sweepType = document.getElementById('tscmSweepType').value;
             const baselineId = document.getElementById('tscmBaselineSelect').value || null;
+            const customRanges = sweepType === 'custom' ? [{
+                start: parseFloat(document.getElementById('tscmCustomStartMhz').value),
+                end: parseFloat(document.getElementById('tscmCustomEndMhz').value),
+                step: 0.1,
+                name: `Custom ${document.getElementById('tscmCustomStartMhz').value}–${document.getElementById('tscmCustomEndMhz').value} MHz`
+            }] : null;
             const wifiEnabled = document.getElementById('tscmWifiEnabled').checked;
             const btEnabled = document.getElementById('tscmBtEnabled').checked;
             const rfEnabled = document.getElementById('tscmRfEnabled').checked;
@@ -12150,7 +12201,8 @@
                         wifi_interface: wifiInterface,
                         bt_interface: btInterface,
                         sdr_device: sdrDevice ? parseInt(sdrDevice) : null,
-                        verbose_results: verboseResults
+                        verbose_results: verboseResults,
+                        custom_ranges: customRanges
                     })
                 });
 
@@ -12919,7 +12971,7 @@
                     if (tscmSweepStartTime) {
                         const elapsed = (Date.now() - tscmSweepStartTime) / 1000;
                         const sweepType = document.getElementById('tscmSweepType')?.value || 'standard';
-                        const durations = { quick: 120, standard: 300, full: 900 };
+                        const durations = { quick: 120, standard: 300, full: 900, custom: 300 };
                         const maxDuration = durations[sweepType] || 300;
                         const progress = Math.min(95, (elapsed / maxDuration) * 100);
                         updateTscmProgress({ progress: Math.round(progress), phase: 'Scanning' });
@@ -16442,6 +16494,7 @@
     <script src="{{ url_for('static', filename='js/core/updater.js') }}"></script>
     <!-- Settings Manager -->
     <script src="{{ url_for('static', filename='js/core/settings-manager.js') }}?v={{ version }}&r=maptheme17"></script>
+    <script src="{{ url_for('static', filename='js/map-utils.js') }}"></script>
     <!-- Alerts + Recording -->
     <script src="{{ url_for('static', filename='js/core/alerts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/recordings.js') }}"></script>

@@ -165,7 +165,9 @@ class CommandBuilder(ABC):
         device: SDRDevice,
         gain: float | None = None,
         bias_t: bool = False,
-        tcp_port: int = 10110
+        tcp_port: int = 10110,
+        udp_host: str | None = None,
+        udp_port: int | None = None,
     ) -> list[str]:
         """
         Build AIS decoder command for vessel tracking.
@@ -175,6 +177,8 @@ class CommandBuilder(ABC):
             gain: Gain in dB (None for auto)
             bias_t: Enable bias-T power (for active antennas)
             tcp_port: TCP port for JSON output server
+            udp_host: Optional host to forward NMEA 0183 sentences via UDP
+            udp_port: UDP port for NMEA forwarding (required if udp_host set)
 
         Returns:
             Command as list of strings for subprocess

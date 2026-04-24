@@ -490,6 +490,7 @@ def _start_sweep_internal(
     bt_interface: str = '',
     sdr_device: int | None = None,
     verbose_results: bool = False,
+    custom_ranges: list[dict] | None = None,
 ) -> dict:
     """Start a TSCM sweep without request context."""
     global _sweep_running, _sweep_thread, _current_sweep_id
@@ -532,7 +533,7 @@ def _start_sweep_internal(
     _sweep_thread = threading.Thread(
         target=_run_sweep,
         args=(sweep_type, baseline_id, wifi_enabled, bt_enabled, rf_enabled,
-              wifi_interface, bt_interface, sdr_device, verbose_results),
+              wifi_interface, bt_interface, sdr_device, verbose_results, custom_ranges),
         daemon=True
     )
     _sweep_thread.start()
@@ -1127,7 +1128,8 @@ def _run_sweep(
     wifi_interface: str = '',
     bt_interface: str = '',
     sdr_device: int | None = None,
-    verbose_results: bool = False
+    verbose_results: bool = False,
+    custom_ranges: list[dict] | None = None,
 ) -> None:
     """
     Run the TSCM sweep in a background thread.
@@ -1504,7 +1506,7 @@ def _run_sweep(
                         'rf_count': len(all_rf),
                     })
                     # Try RF scan even if sdr_device is None (will use device 0)
-                    rf_signals = _scan_rf_signals(sdr_device, sweep_ranges=preset.get('ranges'))
+                    rf_signals = _scan_rf_signals(sdr_device, sweep_ranges=custom_ranges or preset.get('ranges'))
 
                     # If no signals and this is first RF scan, send info event
                     if not rf_signals and last_rf_scan == 0:

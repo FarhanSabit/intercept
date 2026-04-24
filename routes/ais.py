@@ -408,11 +408,24 @@ def start_ais():
     bias_t = data.get('bias_t', False)
     tcp_port = AIS_TCP_PORT
 
+    # Optional UDP NMEA forwarding (e.g. for OpenCPN on port 10110)
+    udp_host = data.get('udp_host') or None
+    udp_port = None
+    if udp_host:
+        try:
+            udp_port = int(data.get('udp_port', 10110))
+            if not 1 <= udp_port <= 65535:
+                raise ValueError
+        except (TypeError, ValueError):
+            return api_error('Invalid udp_port (1-65535)', 400)
+
     cmd = builder.build_ais_command(
         device=sdr_device,
         gain=float(gain),
         bias_t=bias_t,
-        tcp_port=tcp_port
+        tcp_port=tcp_port,
+        udp_host=udp_host,
+        udp_port=udp_port,
     )
 
     # Use the found AIS-catcher path
@@ -533,6 +546,31 @@ def get_vessel_dsc(mmsi: str):
         pass
 
     return api_success(data={'mmsi': mmsi, 'dsc_messages': matches})
+
+
+@ais_bp.route('/vessels')
+def ais_vessels():
+    """Export current AIS vessel data as JSON.
+
+    Returns a snapshot of all tracked vessels suitable for integration
+    with external tools (OpenCPN, ship tracking apps, etc.).
+
+    Query parameters:
+        mmsi: Filter to a specific MMSI (optional)
+
+    Returns:
+        JSON with vessel list and metadata.
+    """
+    vessels = dict(app_module.ais_vessels)
+
+    mmsi_filter = request.args.get('mmsi')
+    if mmsi_filter:
+        vessels = {k: v for k, v in vessels.items() if str(k) == str(mmsi_filter)}
+
+    return jsonify({
+        'count': len(vessels),
+        'vessels': list(vessels.values()),
+    })
 
 
 @ais_bp.route('/dashboard')

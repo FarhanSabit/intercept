@@ -6,14 +6,28 @@
 
                         <div class="form-group">
                             <label>Sweep Type</label>
-                            <select id="tscmSweepType">
+                            <select id="tscmSweepType" onchange="document.getElementById('tscmCustomRangeControls').style.display = this.value === 'custom' ? 'block' : 'none'">
                                 <option value="quick">Quick Scan (2 min)</option>
                                 <option value="standard" selected>Standard (5 min)</option>
                                 <option value="full">Full Sweep (15 min)</option>
                                 <option value="wireless_cameras">Wireless Cameras</option>
                                 <option value="body_worn">Body-Worn Devices</option>
                                 <option value="gps_trackers">GPS Trackers</option>
+                                <option value="custom">Custom Range</option>
                             </select>
+                            <div id="tscmCustomRangeControls" style="display: none; margin-top: 8px;">
+                                <div style="display: flex; gap: 8px;">
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 10px; color: var(--text-dim);">Start (MHz)</label>
+                                        <input type="number" id="tscmCustomStartMhz" value="400" min="1" max="6000" step="1">
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 10px; color: var(--text-dim);">End (MHz)</label>
+                                        <input type="number" id="tscmCustomEndMhz" value="500" min="1" max="6000" step="1">
+                                    </div>
+                                </div>
+                                <p class="info-text" style="font-size: 10px; color: var(--text-dim); margin-top: 3px;">Step: 100 kHz. Duration: ~5 min.</p>
+                            </div>
                         </div>
 
                         <div class="form-group">

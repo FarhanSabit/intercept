@@ -41,10 +41,6 @@
     }
 }
 
-.radar-sweep {
-    transform-origin: 50% 50%;
-}
-
 /* Radar filter buttons */
 .bt-radar-filter-btn {
     transition: all 0.2s ease;

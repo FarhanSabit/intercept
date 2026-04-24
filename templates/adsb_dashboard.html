@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/variables.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/core/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/core/map-utils.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}?v={{ version }}&r=maptheme17">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/help-modal.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/adsb_dashboard.css') }}">
@@ -340,6 +341,9 @@
                     <select id="adsbDeviceSelect" title="SDR device for ADS-B (1090 MHz)">
                         <option value="0">SDR 0</option>
                     </select>
+                    <label title="SDR gain in dB (0 = auto)" style="display:flex;align-items:center;gap:3px;font-size:11px;">
+                        Gain <input type="number" id="adsbGainInput" value="40" min="0" max="50" step="1" style="width:46px;" title="SDR gain in dB">
+                    </label>
                     <label class="bias-t-label" title="Enable Bias-T power for external LNA/preamp"><input type="checkbox" id="adsbBiasT" onchange="saveAdsbBiasTSetting()"> Bias-T</label>
                     <button class="start-btn" id="startBtn" onclick="toggleTracking()">START</button>
                 </div>
@@ -417,6 +421,7 @@
         // STATE
         // ============================================
         let radarMap = null;
+        let mapOverlays = null;
         let aircraft = {};
         let markers = {};
         let selectedIcao = null;
@@ -638,7 +643,6 @@
             return { lat: defaultLat, lon: defaultLon };
         })();
         let rangeRingsLayer = null;
-        let observerMarker = null;
 
         // GPS state
         let gpsConnected = false;
@@ -1512,16 +1516,10 @@ ACARS: ${r.statistics.acarsMessages} messages`;
                 rangeRingsLayer.addLayer(label);
             });
 
-            // Observer marker
-            if (observerMarker) radarMap.removeLayer(observerMarker);
-            observerMarker = L.marker([observerLocation.lat, observerLocation.lon], {
-                icon: L.divIcon({
-                    className: 'observer-marker',
-                    html: '<div style="width: 12px; height: 12px; background: #ff0; border: 2px solid #000; border-radius: 50%; box-shadow: 0 0 10px #ff0;"></div>',
-                    iconSize: [12, 12],
-                    iconAnchor: [6, 6]
-                })
-            }).bindPopup('Your Location').addTo(radarMap);
+            // Observer reticle — update position via MapUtils handle
+            if (mapOverlays) {
+                mapOverlays.updateReticle([observerLocation.lat, observerLocation.lon]);
+            }
 
             rangeRingsLayer.addTo(radarMap);
         }
@@ -2220,112 +2218,33 @@ sudo make install</code>
                 now.toISOString().substring(11, 19) + ' UTC';
         }
 
-        function createFallbackGridLayer() {
-            const layer = L.gridLayer({
-                tileSize: 256,
-                updateWhenIdle: true,
-                attribution: 'Local fallback grid'
-            });
-            layer.createTile = function(coords) {
-                const tile = document.createElement('canvas');
-                tile.width = 256;
-                tile.height = 256;
-                const ctx = tile.getContext('2d');
-
-                ctx.fillStyle = '#08121c';
-                ctx.fillRect(0, 0, 256, 256);
-
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.14)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(256, 0);
-                ctx.moveTo(0, 0);
-                ctx.lineTo(0, 256);
-                ctx.stroke();
-
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.08)';
-                ctx.beginPath();
-                ctx.moveTo(128, 0);
-                ctx.lineTo(128, 256);
-                ctx.moveTo(0, 128);
-                ctx.lineTo(256, 128);
-                ctx.stroke();
-
-                ctx.fillStyle = 'rgba(160, 220, 255, 0.28)';
-                ctx.font = '11px "JetBrains Mono", monospace';
-                ctx.fillText(`Z${coords.z} X${coords.x} Y${coords.y}`, 12, 22);
-
-                return tile;
-            };
-            return layer;
-        }
-
-        async function upgradeRadarTilesFromSettings(fallbackTiles) {
-            if (typeof Settings === 'undefined') return;
-
-            try {
-                await Settings.init();
-                if (!radarMap) return;
-
-                const configuredLayer = Settings.createTileLayer();
-                let tileLoaded = false;
-
-                configuredLayer.once('load', () => {
-                    tileLoaded = true;
-                    if (radarMap && fallbackTiles && radarMap.hasLayer(fallbackTiles)) {
-                        radarMap.removeLayer(fallbackTiles);
-                    }
-                });
-
-                configuredLayer.on('tileerror', () => {
-                    if (!tileLoaded) {
-                        console.warn('ADS-B tile layer failed to load, keeping fallback grid');
-                    }
-                });
-
-                configuredLayer.addTo(radarMap);
-                Settings.registerMap(radarMap);
-            } catch (e) {
-                console.warn('ADS-B: Settings/tile upgrade failed, using fallback grid:', e);
-            }
-        }
-
         async function initMap() {
-            // Guard against double initialization (e.g. bfcache restore)
             const container = document.getElementById('radarMap');
             if (!container || container._leaflet_id) return;
 
-            radarMap = L.map('radarMap', {
+            radarMap = MapUtils.init('radarMap', {
                 center: [observerLocation.lat, observerLocation.lon],
                 zoom: 7,
                 minZoom: 3,
-                maxZoom: 15
+                maxZoom: 15,
             });
-
-            // Use settings manager for tile layer (allows runtime changes)
+            if (!radarMap) return;
             window.radarMap = radarMap;
 
-            // Use a zero-network fallback so dashboard navigation stays fast even
-            // when internet map providers are slow or unreachable.
-            const fallbackTiles = createFallbackGridLayer().addTo(radarMap);
+            // Fix map size after init
+            setTimeout(() => { if (radarMap) radarMap.invalidateSize(); }, 200);
+            setTimeout(() => { if (radarMap) radarMap.invalidateSize(); }, 500);
 
-            // Draw range rings after map is ready
-            setTimeout(() => drawRangeRings(), 100);
-
-            // Fix map size on mobile after initialization
-            setTimeout(() => {
-                if (radarMap) radarMap.invalidateSize();
-            }, 200);
-
-            // Additional invalidateSize to ensure all tiles load
-            setTimeout(() => {
-                if (radarMap) radarMap.invalidateSize();
-            }, 500);
-
-            // Upgrade tiles via Settings in the background without tearing down
-            // the local fallback grid until a real tile layer actually loads.
-            upgradeRadarTilesFromSettings(fallbackTiles);
+            // Tactical overlays: observer reticle + HUD panels + scale bar
+            // Range rings are managed by drawRangeRings() which handles toggle, range changes, and observer moves
+            mapOverlays = MapUtils.addTacticalOverlays(radarMap, {
+                observerReticle: { latlng: [observerLocation.lat, observerLocation.lon] },
+                hudPanels: {
+                    modeName: 'ADS-B',
+                    getContactCount: () => Object.keys(aircraft).length,
+                },
+                scaleBar: true,
+            });
         }
 
         // Handle window resize for map (especially important on mobile)
@@ -2445,6 +2364,7 @@ sudo make install</code>
                 const requestBody = {
                     device: adsbDevice,
                     sdr_type: adsbSdrType,
+                    gain: parseInt(document.getElementById('adsbGainInput')?.value || '40'),
                     bias_t: getBiasTEnabled()
                 };
                 if (remoteConfig) {
@@ -2939,6 +2859,8 @@ sudo make install</code>
                 lastSeen: Date.now()
             };
 
+            if (mapOverlays) mapOverlays.updateCount(Object.keys(aircraft).length);
+
             checkAndAlertAircraft(icao, aircraft[icao]);
             updateStatistics(icao, aircraft[icao]);
 
@@ -2974,12 +2896,17 @@ sudo make install</code>
             const color = militaryInfo.military ? '#556b2f' : getAltitudeColor(ac.altitude);
             const callsign = ac.callsign || icao;
             const alt = ac.altitude ? ac.altitude + ' ft' : 'N/A';
+            const typeLabel = ac.type_desc || ac.type_code || '';
             const iconType = getAircraftIconType(ac.type_code, militaryInfo.military);
             const isSelected = icao === selectedIcao;
 
             const prevState = markerState[icao] || {};
             const iconChanged = prevState.rotation !== rotation || prevState.color !== color || prevState.iconType !== iconType || prevState.isSelected !== isSelected;
-            const tooltipChanged = prevState.callsign !== callsign || prevState.alt !== alt;
+            const tooltipChanged = prevState.callsign !== callsign || prevState.alt !== alt || prevState.typeLabel !== typeLabel;
+
+            const tooltipContent = typeLabel
+                ? `${callsign}<br><span style="opacity:0.75;font-size:10px">${typeLabel}</span><br>${alt}`
+                : `${callsign}<br>${alt}`;
 
             if (markers[icao]) {
                 markers[icao].setLatLng([ac.lat, ac.lon]);
@@ -2988,7 +2915,7 @@ sudo make install</code>
                 }
                 if (tooltipChanged) {
                     markers[icao].unbindTooltip();
-                    markers[icao].bindTooltip(`${callsign}<br>${alt}`, {
+                    markers[icao].bindTooltip(tooltipContent, {
                         permanent: false, direction: 'top', className: 'aircraft-tooltip'
                     });
                 }
@@ -2996,24 +2923,32 @@ sudo make install</code>
                 markers[icao] = L.marker([ac.lat, ac.lon], { icon: createMarkerIcon(rotation, color, iconType, isSelected) })
                     .addTo(radarMap)
                     .on('click', () => selectAircraft(icao, 'map'));
-                markers[icao].bindTooltip(`${callsign}<br>${alt}`, {
+                markers[icao].bindTooltip(tooltipContent, {
                     permanent: false, direction: 'top', className: 'aircraft-tooltip'
                 });
             }
 
-            markerState[icao] = { rotation, color, callsign, alt, iconType, isSelected };
+            markerState[icao] = { rotation, color, callsign, alt, typeLabel, iconType, isSelected };
         }
 
         // Aircraft type icon SVG paths
         const AIRCRAFT_ICONS = {
+            // Widebody: wide wingspan, wide tail — 747, 777, A330, A380 etc.
+            widebody: 'M12 2L7 10H2v2l10 4 10-4v-2h-5L12 2zm0 14l-7 3v1h14v-1l-7-3z',
+            // Narrowbody / default jet — A320, B737 etc.
             jet: 'M12 2L8 10H4v2l8 4 8-4v-2h-4L12 2zm0 14l-6 3v1h12v-1l-6-3z',
+            // Business jet: narrow swept wings set further aft
+            bizjet: 'M12 2L11 11H7v2l5 2.5 5-2.5v-2h-4L12 2zm0 13l-4 2v1h8v-1l-4-2z',
+            // Turboprop: straight high-aspect wings, engines forward
+            turboprop: 'M12 2L10 8H3v2.5l9 3.5 9-3.5V8h-7L12 2zm0 13l-5 2.5v1h10v-1l-5-2.5z',
             helicopter: 'M12 4L10 6H8V8h1l3 8 3-8h1V6h-2L12 4zm-1 14v2H9v1h6v-1h-2v-2h-2zm7-7h-2v2h2v-2zM4 11h2v2H4v-2z',
+            // Light piston GA — C172, PA28 etc.
             prop: 'M12 3L9 8H5v2l7 6 7-6v-2h-4L12 3zm0 12l-4 2v1h8v-1l-4-2z',
             military: 'M12 2L7 9H3l1 3 8 6 8-6 1-3h-4L12 2zm0 14l-5 2.5V20h10v-1.5L12 16z',
             glider: 'M12 4L10 8H4v1.5l8 4 8-4V8h-6L12 4zm0 10l-6 2v1h12v-1l-6-2z'
         };
 
-        // Determine aircraft type from type_code
+        // Determine aircraft icon type from ICAO type_code
         function getAircraftIconType(typeCode, isMilitary) {
             if (isMilitary) return 'military';
             if (!typeCode) return 'jet';
@@ -3022,22 +2957,51 @@ sudo make install</code>
 
             // Helicopters
             if (code.startsWith('H') || code.includes('HELI') ||
-                ['R22', 'R44', 'R66', 'EC35', 'EC45', 'AS50', 'AS55', 'AS65', 'B06', 'B212', 'B412', 'S76', 'A109', 'AW139', 'AW169'].some(h => code.includes(h))) {
+                ['R22', 'R44', 'R66', 'EC35', 'EC45', 'AS50', 'AS55', 'AS65', 'B06', 'B212', 'B412',
+                 'S76', 'S92', 'A109', 'AW139', 'AW169', 'AW189', 'EC25', 'EC30', 'EC75', 'EC85',
+                 'MI8', 'MI17', 'MI26', 'CH47', 'UH60', 'UH72', 'NH90'].some(h => code.includes(h))) {
                 return 'helicopter';
             }
 
-            // Gliders
-            if (code.startsWith('G') || code.includes('GLID')) {
+            // Gliders / motorgliders
+            if (code.startsWith('G') || ['GLID', 'DG1', 'DG2', 'DG3', 'DG4', 'DG5', 'ASK', 'ASW',
+                'LS4', 'LS6', 'LS8', 'DUET', 'DISC', 'NIMB', 'PUCH', 'VENT'].some(g => code.includes(g))) {
                 return 'glider';
             }
 
-            // Light props (common GA aircraft)
-            if (['C150', 'C152', 'C172', 'C182', 'C206', 'C208', 'C210', 'PA28', 'PA32', 'PA34', 'PA44', 'PA46', 'SR20', 'SR22', 'DA40', 'DA42', 'TB20', 'M20', 'BE35', 'BE36', 'BE58'].some(p => code.includes(p))) {
-                return 'prop';
+            // Widebody jets (twin-aisle)
+            if (['B741', 'B742', 'B743', 'B744', 'B748', 'B74D', 'B74R', 'B74S',
+                 'B762', 'B763', 'B764', 'B772', 'B773', 'B77L', 'B77W', 'B778', 'B779',
+                 'B788', 'B789', 'B78X',
+                 'A306', 'A30B', 'A310', 'A332', 'A333', 'A338', 'A339',
+                 'A342', 'A343', 'A345', 'A346', 'A359', 'A35K', 'A388',
+                 'IL86', 'IL96', 'MD11', 'DC10', 'L101'].some(w => code.startsWith(w) || code === w)) {
+                return 'widebody';
             }
 
-            // Turboprops
-            if (['ATR', 'DH8', 'DHC', 'SF34', 'J328', 'B190', 'PC12', 'TBM'].some(t => code.includes(t))) {
+            // Business jets
+            if (['C25', 'C50', 'C51', 'C52', 'C55', 'C56', 'C65', 'C68', 'C70', 'C75',
+                 'GLF', 'GLEX', 'G150', 'G200', 'G280', 'G450', 'G500', 'G550', 'G600', 'G650',
+                 'LJ2', 'LJ3', 'LJ4', 'LJ5', 'LJ6', 'LJ7',
+                 'F2TH', 'F900', 'F7X', 'F8X', 'DA50',
+                 'CL30', 'CL35', 'CL60', 'CRJ1', 'CRJ2',
+                 'E135', 'E145', 'PC24', 'BE40', 'HA4T', 'PRM1'].some(b => code.startsWith(b))) {
+                return 'bizjet';
+            }
+
+            // Turboprops (regional airliners and utility)
+            if (['ATR', 'DH8', 'DHC', 'SF34', 'J328', 'B190', 'PC12', 'TBM', 'C208',
+                 'PAY', 'BE99', 'BE9L', 'SW4', 'IL18', 'AN24', 'AN26', 'AN28',
+                 'F27', 'F50', 'JS31', 'JS32', 'JS41', 'MA60', 'Y12'].some(t => code.startsWith(t) || code.includes(t))) {
+                return 'turboprop';
+            }
+
+            // Light piston GA
+            if (['C150', 'C152', 'C172', 'C182', 'C206', 'C210', 'C310', 'C337',
+                 'PA18', 'PA28', 'PA32', 'PA34', 'PA44', 'PA46',
+                 'SR20', 'SR22', 'DA40', 'DA42', 'TB20', 'TB9',
+                 'M20', 'BE35', 'BE36', 'BE58', 'BE60',
+                 'RV6', 'RV7', 'RV8', 'RV9', 'RV10'].some(p => code.startsWith(p) || code.includes(p))) {
                 return 'prop';
             }
 
@@ -3046,7 +3010,7 @@ sudo make install</code>
 
         function createMarkerIcon(rotation, color, iconType = 'jet', isSelected = false) {
             const path = AIRCRAFT_ICONS[iconType] || AIRCRAFT_ICONS.jet;
-            const size = iconType === 'helicopter' ? 22 : 24;
+            const size = iconType === 'helicopter' ? 22 : iconType === 'widebody' ? 26 : iconType === 'bizjet' ? 22 : 24;
             const glowColor = isSelected ? 'rgba(255,255,255,0.9)' : color;
             const glowSize = isSelected ? '10px' : '5px';
             const trackingRing = isSelected ?
@@ -5750,6 +5714,7 @@ sudo make install</code>
     <script src="{{ url_for('static', filename='js/core/cheat-sheets.js') }}"></script>
     {% include 'partials/nav-utility-modals.html' %}
     <script src="{{ url_for('static', filename='js/core/settings-manager.js') }}?v={{ version }}&r=maptheme17"></script>
+    <script src="{{ url_for('static', filename='js/map-utils.js') }}"></script>
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             if (typeof VoiceAlerts !== 'undefined') VoiceAlerts.init();
