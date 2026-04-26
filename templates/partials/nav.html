@@ -540,12 +540,21 @@
             window._navClockStarted = true;
             function updateNavUtcClock() {
                 const now = new Date();
-                const utc = now.toISOString().slice(11, 19);
                 const el = document.getElementById('headerUtcTime');
-                if (el) el.textContent = utc;
+                const label = document.querySelector('.utc-label');
+                if (typeof InterceptTime !== 'undefined') {
+                    if (el) el.textContent = InterceptTime.fullTime(now);
+                    if (label) label.textContent = InterceptTime.getLabel() || 'LOCAL';
+                } else {
+                    if (el) el.textContent = now.toISOString().slice(11, 19);
+                }
             }
             setInterval(updateNavUtcClock, 1000);
             updateNavUtcClock();
+            // React immediately when timezone/format changes in Settings
+            if (typeof InterceptTime !== 'undefined' && InterceptTime.onChange) {
+                InterceptTime.onChange(updateNavUtcClock);
+            }
         }
     })();
 </script>
