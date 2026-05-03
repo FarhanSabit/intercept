@@ -56,7 +56,7 @@ def test_hackrf_sweep_line_emits_observation(detector):
     obs = q.get_nowait()
     assert isinstance(obs, RFObservation)
     assert obs.hardware == "HACKRF"
-    assert obs.frequency_hz == hz_low
+    assert obs.frequency_hz == (hz_low + hz_high) // 2
     assert obs.rssi < 0
 
 
