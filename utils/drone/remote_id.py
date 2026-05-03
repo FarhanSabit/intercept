@@ -101,13 +101,14 @@ class RemoteIDScanner:
         self._running = True
         if SCAPY_AVAILABLE and wifi_iface:
             try:
-                self._sniffer = AsyncSniffer(
+                sniffer = AsyncSniffer(
                     iface=wifi_iface,
                     filter="type mgt subtype beacon",
                     prn=self._on_wifi_packet,
                     store=False,
                 )
-                self._sniffer.start()
+                sniffer.start()
+                self._sniffer = sniffer
                 logger.info("WiFi Remote ID sniffer started on %s", wifi_iface)
             except Exception as exc:
                 logger.warning("WiFi Remote ID sniffer failed to start: %s", exc)
