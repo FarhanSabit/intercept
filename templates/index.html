@@ -187,7 +187,8 @@
             spaceweather: "{{ url_for('static', filename='js/modes/space-weather.js') }}",
             system: "{{ url_for('static', filename='js/modes/system.js') }}",
             meteor: "{{ url_for('static', filename='js/modes/meteor.js') }}",
-            waterfall: "{{ url_for('static', filename='js/modes/waterfall.js') }}?v={{ version }}&r=wfdeck21"
+            waterfall: "{{ url_for('static', filename='js/modes/waterfall.js') }}?v={{ version }}&r=wfdeck21",
+            drone: "{{ url_for('static', filename='js/modes/drone.js') }}"
         };
         window.INTERCEPT_MODE_SCRIPT_LOADED = {};
         window.INTERCEPT_MODE_SCRIPT_PROMISES = {};
@@ -3692,6 +3693,7 @@
             wifi_locate: { label: 'WiFi Locate', indicator: 'WF LOCATE', outputTitle: 'WiFi Locate', group: 'wireless' },
             meshtastic: { label: 'Meshtastic', indicator: 'MESHTASTIC', outputTitle: 'Meshtastic Mesh Monitor', group: 'wireless' },
             tscm: { label: 'TSCM', indicator: 'TSCM', outputTitle: 'TSCM Counter-Surveillance', group: 'intel' },
+            drone: { label: 'Drone Intel', indicator: 'DRONE', outputTitle: 'Drone Intelligence', group: 'intel' },
             spystations: { label: 'Spy Stations', indicator: 'SPY STATIONS', outputTitle: 'Spy Stations', group: 'intel' },
             websdr: { label: 'WebSDR', indicator: 'WEBSDR', outputTitle: 'HF/Shortwave WebSDR', group: 'intel' },
             waterfall: { label: 'Waterfall', indicator: 'WATERFALL', outputTitle: 'Spectrum Waterfall', group: 'signals' },
@@ -4318,6 +4320,7 @@
                 tscm: () => { if (tscmEventSource) { tscmEventSource.close(); tscmEventSource = null; } },
                 meteor: () => typeof MeteorScatter !== 'undefined' && MeteorScatter.destroy?.(),
                 ook: () => typeof OokMode !== 'undefined' && OokMode.destroy?.(),
+                drone: () => typeof DroneMode !== 'undefined' && DroneMode.destroy?.(),
             };
             return moduleDestroyMap[mode] || null;
         }
@@ -4927,6 +4930,8 @@
                 SystemHealth.init();
             } else if (mode === 'ook') {
                 OokMode.init();
+            } else if (mode === 'drone') {
+                if (typeof DroneMode !== 'undefined') DroneMode.init();
             }
             if (requestId !== modeSwitchRequestId) return;
 
