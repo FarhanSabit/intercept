@@ -98,6 +98,8 @@ class RemoteIDScanner:
             elt = elt.payload if hasattr(elt, "payload") and isinstance(elt.payload, Dot11Elt) else None
 
     def start(self, wifi_iface: str | None = None) -> None:
+        if self._running:
+            return
         self._running = True
         if SCAPY_AVAILABLE and wifi_iface:
             try:

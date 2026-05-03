@@ -10,8 +10,20 @@
     function init() {
         document.getElementById('droneStartBtn')?.addEventListener('click', _start);
         document.getElementById('droneStopBtn')?.addEventListener('click', _stop);
+        _initMap();
         _connectSSE();
         _refreshStatus();
+    }
+
+    function _initMap() {
+        if (_map) return;
+        const mapEl = document.getElementById('droneMap');
+        if (!mapEl || typeof L === 'undefined') return;
+        _map = L.map('droneMap', { zoomControl: true }).setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 18,
+        }).addTo(_map);
     }
 
     function destroy() {
@@ -34,6 +46,8 @@
             } catch (_) {}
         });
         _sse.onerror = function () {
+            _sse.close();
+            _sse = null;
             setTimeout(_connectSSE, 3000);
         };
     }
