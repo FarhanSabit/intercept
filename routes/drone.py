@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 
 from flask import Blueprint, Response, jsonify, request
 
@@ -21,6 +22,7 @@ _correlator: DroneCorrelator | None = None
 _remote_id_scanner: RemoteIDScanner | None = None
 _rf_detector: RFDetector | None = None
 _drone_running = False
+_drone_lock = threading.Lock()
 
 
 def _ensure_workers() -> None:
@@ -64,11 +66,14 @@ def start():
     rtl_index = int((request.json or {}).get("rtl_sdr_index", 0))
     use_hackrf = bool((request.json or {}).get("use_hackrf", True))
 
-    if not _drone_running:
-        _remote_id_scanner.start(wifi_iface=wifi_iface)
-        _rf_detector.start(rtl_sdr_index=rtl_index, use_hackrf=use_hackrf)
-        _drone_running = True
-        logger.info("Drone detection started")
+    with _drone_lock:
+        if not _drone_running:
+            if _remote_id_scanner:
+                _remote_id_scanner.start(wifi_iface=wifi_iface)
+            if _rf_detector:
+                _rf_detector.start(rtl_sdr_index=rtl_index, use_hackrf=use_hackrf)
+            _drone_running = True
+            logger.info("Drone detection started")
 
     return jsonify({"status": "ok", "running": True})
 
@@ -76,11 +81,12 @@ def start():
 @drone_bp.route("/stop", methods=["POST"])
 def stop():
     global _drone_running
-    if _remote_id_scanner:
-        _remote_id_scanner.stop()
-    if _rf_detector:
-        _rf_detector.stop()
-    _drone_running = False
+    with _drone_lock:
+        if _remote_id_scanner:
+            _remote_id_scanner.stop()
+        if _rf_detector:
+            _rf_detector.stop()
+        _drone_running = False
     logger.info("Drone detection stopped")
     return jsonify({"status": "ok", "running": False})
 
