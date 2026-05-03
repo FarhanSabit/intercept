@@ -70,14 +70,25 @@ def test_hackrf_sweep_below_threshold_ignored(detector):
     assert q.empty()
 
 
+def test_out_of_band_frequency_ignored(detector):
+    det, q = detector
+    # 915 MHz is not in any drone band
+    line = json.dumps({"freq": 915_000_000, "rssi": -50.0, "protocol": "Generic"})
+    det._handle_rtl433_line(line)
+    assert q.empty()
+
+
 def test_start_stop(detector):
     det, q = detector
     mock_proc = MagicMock()
     mock_proc.stdout = MagicMock()
     mock_proc.stdout.readline = MagicMock(side_effect=[b""])
-    with patch("subprocess.Popen", return_value=mock_proc):
-        with patch("shutil.which", return_value="/usr/bin/rtl_433"):
-            det.start(rtl_sdr_index=0)
+    # Patch both shutil.which calls (rtl_433 in _run_rtl433, hackrf_sweep in _run_hackrf)
+    with (
+        patch("subprocess.Popen", return_value=mock_proc),
+        patch("utils.drone.rf_detector.shutil.which", return_value=None),
+    ):
+        det.start(rtl_sdr_index=0, use_hackrf=False)
     assert det.running
     det.stop()
     assert not det.running
