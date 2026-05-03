@@ -102,7 +102,8 @@
             radiosonde: "{{ url_for('static', filename='css/modes/radiosonde.css') }}",
             meteor: "{{ url_for('static', filename='css/modes/meteor.css') }}",
             system: "{{ url_for('static', filename='css/modes/system.css') }}",
-            ook: "{{ url_for('static', filename='css/modes/ook.css') }}"
+            ook: "{{ url_for('static', filename='css/modes/ook.css') }}",
+            drone: "{{ url_for('static', filename='css/modes/drone.css') }}"
         };
         window.INTERCEPT_MODE_STYLE_LOADED = {};
         window.INTERCEPT_MODE_STYLE_PROMISES = {};
@@ -763,6 +764,8 @@
                 {% include 'partials/modes/tscm.html' %}
 
                 {% include 'partials/modes/ais.html' %}
+
+                {% include 'partials/modes/drone.html' %}
 
                 {% include 'partials/modes/radiosonde.html' %}
 
@@ -4625,6 +4628,7 @@
             document.getElementById('aprsMode')?.classList.toggle('active', mode === 'aprs');
             document.getElementById('tscmMode')?.classList.toggle('active', mode === 'tscm');
             document.getElementById('aisMode')?.classList.toggle('active', mode === 'ais');
+            document.getElementById('droneMode')?.classList.toggle('active', mode === 'drone');
             document.getElementById('radiosondeMode')?.classList.toggle('active', mode === 'radiosonde');
             document.getElementById('spystationsMode')?.classList.toggle('active', mode === 'spystations');
             document.getElementById('meshtasticMode')?.classList.toggle('active', mode === 'meshtastic');
