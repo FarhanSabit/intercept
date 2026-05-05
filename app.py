@@ -317,6 +317,9 @@ deauth_detector = None
 deauth_detector_queue = queue.Queue(maxsize=QUEUE_MAX_SIZE)
 deauth_detector_lock = threading.Lock()
 
+# Drone Intelligence
+drone_queue = queue.Queue(maxsize=QUEUE_MAX_SIZE)
+
 # ============================================
 # GLOBAL STATE DICTIONARIES
 # ============================================
