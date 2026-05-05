@@ -23,6 +23,7 @@ from utils.responses import api_error, api_success
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
+
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     psycopg2 = None  # type: ignore
@@ -68,7 +69,7 @@ from utils.sdr import SDRFactory, SDRType
 from utils.sse import format_sse
 from utils.validation import validate_device_index, validate_gain, validate_rtl_tcp_host, validate_rtl_tcp_port
 
-adsb_bp = Blueprint('adsb', __name__, url_prefix='/adsb')
+adsb_bp = Blueprint("adsb", __name__, url_prefix="/adsb")
 
 # Track if using service
 adsb_using_service = False
@@ -96,17 +97,17 @@ aircraft_db.load_database()
 # Common installation paths for dump1090 (when not in PATH)
 DUMP1090_PATHS = [
     # Homebrew on Apple Silicon (M1/M2/M3)
-    '/opt/homebrew/bin/dump1090',
-    '/opt/homebrew/bin/dump1090-fa',
-    '/opt/homebrew/bin/dump1090-mutability',
+    "/opt/homebrew/bin/dump1090",
+    "/opt/homebrew/bin/dump1090-fa",
+    "/opt/homebrew/bin/dump1090-mutability",
     # Homebrew on Intel Mac
-    '/usr/local/bin/dump1090',
-    '/usr/local/bin/dump1090-fa',
-    '/usr/local/bin/dump1090-mutability',
+    "/usr/local/bin/dump1090",
+    "/usr/local/bin/dump1090-fa",
+    "/usr/local/bin/dump1090-mutability",
     # Linux system paths
-    '/usr/bin/dump1090',
-    '/usr/bin/dump1090-fa',
-    '/usr/bin/dump1090-mutability',
+    "/usr/bin/dump1090",
+    "/usr/bin/dump1090-fa",
+    "/usr/bin/dump1090-mutability",
 ]
 
 
@@ -158,24 +159,24 @@ def _build_history_record(
     raw_line: str,
 ) -> dict[str, Any]:
     return {
-        'received_at': datetime.now(timezone.utc),
-        'msg_time': msg_time,
-        'logged_time': logged_time,
-        'icao': icao,
-        'msg_type': _parse_int(msg_type),
-        'callsign': _get_part(parts, 10),
-        'altitude': _parse_int(_get_part(parts, 11)),
-        'speed': _parse_int(_get_part(parts, 12)),
-        'heading': _parse_int(_get_part(parts, 13)),
-        'vertical_rate': _parse_int(_get_part(parts, 16)),
-        'lat': _parse_float(_get_part(parts, 14)),
-        'lon': _parse_float(_get_part(parts, 15)),
-        'squawk': _get_part(parts, 17),
-        'session_id': _get_part(parts, 2),
-        'aircraft_id': _get_part(parts, 3),
-        'flight_id': _get_part(parts, 5),
-        'raw_line': raw_line,
-        'source_host': service_addr,
+        "received_at": datetime.now(timezone.utc),
+        "msg_time": msg_time,
+        "logged_time": logged_time,
+        "icao": icao,
+        "msg_type": _parse_int(msg_type),
+        "callsign": _get_part(parts, 10),
+        "altitude": _parse_int(_get_part(parts, 11)),
+        "speed": _parse_int(_get_part(parts, 12)),
+        "heading": _parse_int(_get_part(parts, 13)),
+        "vertical_rate": _parse_int(_get_part(parts, 16)),
+        "lat": _parse_float(_get_part(parts, 14)),
+        "lon": _parse_float(_get_part(parts, 15)),
+        "squawk": _get_part(parts, 17),
+        "session_id": _get_part(parts, 2),
+        "aircraft_id": _get_part(parts, 3),
+        "flight_id": _get_part(parts, 5),
+        "raw_line": raw_line,
+        "source_host": service_addr,
     }
 
 
@@ -214,10 +215,37 @@ MILITARY_ICAO_RANGES = [
 ]
 
 MILITARY_CALLSIGN_PREFIXES = (
-    'REACH', 'JAKE', 'DOOM', 'IRON', 'HAWK', 'VIPER', 'COBRA', 'THUNDER',
-    'SHADOW', 'NIGHT', 'STEEL', 'GRIM', 'REAPER', 'BLADE', 'STRIKE',
-    'RCH', 'CNV', 'MCH', 'EVAC', 'TOPCAT', 'ASCOT', 'RRR', 'HRK',
-    'NAVY', 'ARMY', 'USAF', 'RAF', 'RCAF', 'RAAF', 'IAF', 'PAF',
+    "REACH",
+    "JAKE",
+    "DOOM",
+    "IRON",
+    "HAWK",
+    "VIPER",
+    "COBRA",
+    "THUNDER",
+    "SHADOW",
+    "NIGHT",
+    "STEEL",
+    "GRIM",
+    "REAPER",
+    "BLADE",
+    "STRIKE",
+    "RCH",
+    "CNV",
+    "MCH",
+    "EVAC",
+    "TOPCAT",
+    "ASCOT",
+    "RRR",
+    "HRK",
+    "NAVY",
+    "ARMY",
+    "USAF",
+    "RAF",
+    "RCAF",
+    "RAAF",
+    "IAF",
+    "PAF",
 )
 
 
@@ -238,7 +266,9 @@ def _is_military_aircraft(icao: str, callsign: str | None) -> bool:
     return False
 
 
-def _parse_int_param(value: str | None, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
+def _parse_int_param(
+    value: str | None, default: int, min_value: int | None = None, max_value: int | None = None
+) -> int:
     try:
         parsed = int(value) if value is not None else default
     except (ValueError, TypeError):
@@ -256,7 +286,7 @@ def _parse_iso_datetime(value: Any) -> datetime | None:
     cleaned = value.strip()
     if not cleaned:
         return None
-    if cleaned.endswith('Z'):
+    if cleaned.endswith("Z"):
         cleaned = f"{cleaned[:-1]}+00:00"
     try:
         parsed = datetime.fromisoformat(cleaned)
@@ -270,14 +300,14 @@ def _parse_iso_datetime(value: Any) -> datetime | None:
 def _parse_export_scope(
     args: Any,
 ) -> tuple[str, int, datetime | None, datetime | None]:
-    scope = str(args.get('scope') or 'window').strip().lower()
-    if scope not in {'window', 'all', 'custom'}:
-        scope = 'window'
-    since_minutes = _parse_int_param(args.get('since_minutes'), 1440, 1, 525600)
-    start = _parse_iso_datetime(args.get('start'))
-    end = _parse_iso_datetime(args.get('end'))
-    if scope == 'custom' and (start is None or end is None or end <= start):
-        scope = 'window'
+    scope = str(args.get("scope") or "window").strip().lower()
+    if scope not in {"window", "all", "custom"}:
+        scope = "window"
+    since_minutes = _parse_int_param(args.get("since_minutes"), 1440, 1, 525600)
+    start = _parse_iso_datetime(args.get("start"))
+    end = _parse_iso_datetime(args.get("end"))
+    if scope == "custom" and (start is None or end is None or end <= start):
+        scope = "window"
     return scope, since_minutes, start, end
 
 
@@ -291,14 +321,14 @@ def _add_time_filter(
     start: datetime | None,
     end: datetime | None,
 ) -> None:
-    if scope == 'all':
+    if scope == "all":
         return
-    if scope == 'custom' and start is not None and end is not None:
+    if scope == "custom" and start is not None and end is not None:
         where_parts.append(f"{timestamp_field} >= %s AND {timestamp_field} < %s")
         params.extend([start, end])
         return
     where_parts.append(f"{timestamp_field} >= NOW() - INTERVAL %s")
-    params.append(f'{since_minutes} minutes')
+    params.append(f"{since_minutes} minutes")
 
 
 def _serialize_export_value(value: Any) -> Any:
@@ -327,16 +357,16 @@ def _build_export_csv(
     output = io.StringIO()
     writer = csv.writer(output)
 
-    writer.writerow(['Exported At', exported_at])
-    writer.writerow(['Scope', scope])
+    writer.writerow(["Exported At", exported_at])
+    writer.writerow(["Scope", scope])
     if since_minutes is not None:
-        writer.writerow(['Since Minutes', since_minutes])
+        writer.writerow(["Since Minutes", since_minutes])
     if icao:
-        writer.writerow(['ICAO Filter', icao])
+        writer.writerow(["ICAO Filter", icao])
     if search:
-        writer.writerow(['Search Filter', search])
-    if classification != 'all':
-        writer.writerow(['Classification', classification])
+        writer.writerow(["Search Filter", search])
+    if classification != "all":
+        writer.writerow(["Classification", classification])
     writer.writerow([])
 
     def write_section(title: str, rows: list[dict[str, Any]], columns: list[str]) -> None:
@@ -346,35 +376,71 @@ def _build_export_csv(
             writer.writerow([_serialize_export_value(row.get(col)) for col in columns])
         writer.writerow([])
 
-    if export_type in {'messages', 'all'}:
+    if export_type in {"messages", "all"}:
         write_section(
-            'Messages',
+            "Messages",
             messages,
             [
-                'received_at', 'msg_time', 'logged_time', 'icao', 'msg_type', 'callsign',
-                'altitude', 'speed', 'heading', 'vertical_rate', 'lat', 'lon', 'squawk',
-                'session_id', 'aircraft_id', 'flight_id', 'source_host', 'raw_line',
+                "received_at",
+                "msg_time",
+                "logged_time",
+                "icao",
+                "msg_type",
+                "callsign",
+                "altitude",
+                "speed",
+                "heading",
+                "vertical_rate",
+                "lat",
+                "lon",
+                "squawk",
+                "session_id",
+                "aircraft_id",
+                "flight_id",
+                "source_host",
+                "raw_line",
             ],
         )
 
-    if export_type in {'snapshots', 'all'}:
+    if export_type in {"snapshots", "all"}:
         write_section(
-            'Snapshots',
+            "Snapshots",
             snapshots,
             [
-                'captured_at', 'icao', 'callsign', 'registration', 'type_code', 'type_desc',
-                'altitude', 'speed', 'heading', 'vertical_rate', 'lat', 'lon', 'squawk',
-                'source_host',
+                "captured_at",
+                "icao",
+                "callsign",
+                "registration",
+                "type_code",
+                "type_desc",
+                "altitude",
+                "speed",
+                "heading",
+                "vertical_rate",
+                "lat",
+                "lon",
+                "squawk",
+                "source_host",
             ],
         )
 
-    if export_type in {'sessions', 'all'}:
+    if export_type in {"sessions", "all"}:
         write_section(
-            'Sessions',
+            "Sessions",
             sessions,
             [
-                'id', 'started_at', 'ended_at', 'device_index', 'sdr_type', 'remote_host',
-                'remote_port', 'start_source', 'stop_source', 'started_by', 'stopped_by', 'notes',
+                "id",
+                "started_at",
+                "ended_at",
+                "device_index",
+                "sdr_type",
+                "remote_host",
+                "remote_port",
+                "start_source",
+                "stop_source",
+                "started_by",
+                "stopped_by",
+                "notes",
             ],
         )
 
@@ -491,10 +557,11 @@ def _record_session_stop(*, stop_source: str | None, stopped_by: str | None) -> 
         logger.warning("ADS-B session stop record failed: %s", exc)
         return None
 
+
 def find_dump1090():
     """Find dump1090 binary, checking PATH and common locations."""
     # First try PATH
-    for name in ['dump1090', 'dump1090-mutability', 'dump1090-fa']:
+    for name in ["dump1090", "dump1090-mutability", "dump1090-fa"]:
         path = shutil.which(name)
         if path:
             return path
@@ -510,10 +577,10 @@ def check_dump1090_service():
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(SOCKET_CONNECT_TIMEOUT)
-        result = sock.connect_ex(('localhost', ADSB_SBS_PORT))
+        result = sock.connect_ex(("localhost", ADSB_SBS_PORT))
         sock.close()
         if result == 0:
-            return f'localhost:{ADSB_SBS_PORT}'
+            return f"localhost:{ADSB_SBS_PORT}"
     except OSError:
         pass
     return None
@@ -521,12 +588,19 @@ def check_dump1090_service():
 
 def parse_sbs_stream(service_addr):
     """Parse SBS format data from dump1090 SBS port."""
-    global adsb_using_service, adsb_connected, adsb_messages_received, adsb_last_message_time, adsb_bytes_received, adsb_lines_received, _sbs_error_logged
+    global \
+        adsb_using_service, \
+        adsb_connected, \
+        adsb_messages_received, \
+        adsb_last_message_time, \
+        adsb_bytes_received, \
+        adsb_lines_received, \
+        _sbs_error_logged
 
     adsb_history_writer.start()
     adsb_snapshot_writer.start()
 
-    host, port = service_addr.split(':')
+    host, port = service_addr.split(":")
     port = int(port)
 
     logger.info(f"SBS stream parser started, connecting to {host}:{port}")
@@ -563,38 +637,41 @@ def parse_sbs_stream(service_addr):
                 for update_icao in tuple(pending_updates):
                     if update_icao in app_module.adsb_aircraft:
                         snapshot = app_module.adsb_aircraft[update_icao]
-                        _broadcast_adsb_update({
-                            'type': 'aircraft',
-                            **snapshot
-                        })
-                        adsb_snapshot_writer.enqueue({
-                            'captured_at': captured_at,
-                            'icao': update_icao,
-                            'callsign': snapshot.get('callsign'),
-                            'registration': snapshot.get('registration'),
-                            'type_code': snapshot.get('type_code'),
-                            'type_desc': snapshot.get('type_desc'),
-                            'altitude': snapshot.get('altitude'),
-                            'speed': snapshot.get('speed'),
-                            'heading': snapshot.get('heading'),
-                            'vertical_rate': snapshot.get('vertical_rate'),
-                            'lat': snapshot.get('lat'),
-                            'lon': snapshot.get('lon'),
-                            'squawk': snapshot.get('squawk'),
-                            'source_host': service_addr,
-                            'snapshot': snapshot,
-                        })
+                        _broadcast_adsb_update({"type": "aircraft", **snapshot})
+                        adsb_snapshot_writer.enqueue(
+                            {
+                                "captured_at": captured_at,
+                                "icao": update_icao,
+                                "callsign": snapshot.get("callsign"),
+                                "registration": snapshot.get("registration"),
+                                "type_code": snapshot.get("type_code"),
+                                "type_desc": snapshot.get("type_desc"),
+                                "altitude": snapshot.get("altitude"),
+                                "speed": snapshot.get("speed"),
+                                "heading": snapshot.get("heading"),
+                                "vertical_rate": snapshot.get("vertical_rate"),
+                                "lat": snapshot.get("lat"),
+                                "lon": snapshot.get("lon"),
+                                "squawk": snapshot.get("squawk"),
+                                "source_host": service_addr,
+                                "snapshot": snapshot,
+                            }
+                        )
                         # Geofence check
-                        _gf_lat = snapshot.get('lat')
-                        _gf_lon = snapshot.get('lon')
+                        _gf_lat = snapshot.get("lat")
+                        _gf_lon = snapshot.get("lon")
                         if _gf_lat is not None and _gf_lon is not None:
                             try:
                                 from utils.geofence import get_geofence_manager
+
                                 for _gf_evt in get_geofence_manager().check_position(
-                                    update_icao, 'aircraft', _gf_lat, _gf_lon,
-                                    {'callsign': snapshot.get('callsign'), 'altitude': snapshot.get('altitude')}
+                                    update_icao,
+                                    "aircraft",
+                                    _gf_lat,
+                                    _gf_lon,
+                                    {"callsign": snapshot.get("callsign"), "altitude": snapshot.get("altitude")},
                                 ):
-                                    process_event('adsb', _gf_evt, 'geofence')
+                                    process_event("adsb", _gf_evt, "geofence")
                             except Exception:
                                 pass
 
@@ -603,7 +680,7 @@ def parse_sbs_stream(service_addr):
 
             while adsb_using_service:
                 try:
-                    data = sock.recv(SOCKET_BUFFER_SIZE).decode('utf-8', errors='ignore')
+                    data = sock.recv(SOCKET_BUFFER_SIZE).decode("utf-8", errors="ignore")
                     if not data:
                         flush_pending_updates(force=True)
                         logger.warning("SBS connection closed (no data)")
@@ -611,8 +688,8 @@ def parse_sbs_stream(service_addr):
                     adsb_bytes_received += len(data)
                     buffer += data
 
-                    while '\n' in buffer:
-                        line, buffer = buffer.split('\n', 1)
+                    while "\n" in buffer:
+                        line, buffer = buffer.split("\n", 1)
                         line = line.strip()
                         if not line:
                             continue
@@ -622,8 +699,8 @@ def parse_sbs_stream(service_addr):
                         if adsb_lines_received <= 3:
                             logger.info(f"SBS line {adsb_lines_received}: {line[:100]}")
 
-                        parts = line.split(',')
-                        if len(parts) < 11 or parts[0] != 'MSG':
+                        parts = line.split(",")
+                        if len(parts) < 11 or parts[0] != "MSG":
                             if adsb_lines_received <= 5:
                                 logger.debug(f"Skipping non-MSG line: {line[:50]}")
                             continue
@@ -646,90 +723,105 @@ def parse_sbs_stream(service_addr):
                         )
                         adsb_history_writer.enqueue(history_record)
 
-                        aircraft = app_module.adsb_aircraft.get(icao) or {'icao': icao}
+                        aircraft = app_module.adsb_aircraft.get(icao) or {"icao": icao}
 
                         # Look up aircraft type from database (once per ICAO)
                         if icao not in _looked_up_icaos:
                             _looked_up_icaos.add(icao)
                             db_info = aircraft_db.lookup(icao)
                             if db_info:
-                                if db_info['registration']:
-                                    aircraft['registration'] = db_info['registration']
-                                if db_info['type_code']:
-                                    aircraft['type_code'] = db_info['type_code']
-                                if db_info['type_desc']:
-                                    aircraft['type_desc'] = db_info['type_desc']
+                                if db_info["registration"]:
+                                    aircraft["registration"] = db_info["registration"]
+                                if db_info["type_code"]:
+                                    aircraft["type_code"] = db_info["type_code"]
+                                if db_info["type_desc"]:
+                                    aircraft["type_desc"] = db_info["type_desc"]
 
-                        if msg_type == '1' and len(parts) > 10:
+                        if msg_type == "1" and len(parts) > 10:
                             callsign = parts[10].strip()
                             if callsign:
-                                aircraft['callsign'] = callsign
+                                aircraft["callsign"] = callsign
 
-                        elif msg_type == '3' and len(parts) > 15:
+                        elif msg_type == "3" and len(parts) > 15:
                             if parts[11]:
                                 with contextlib.suppress(ValueError, TypeError):
-                                    aircraft['altitude'] = int(float(parts[11]))
+                                    aircraft["altitude"] = int(float(parts[11]))
                             if parts[14] and parts[15]:
                                 try:
-                                    aircraft['lat'] = float(parts[14])
-                                    aircraft['lon'] = float(parts[15])
+                                    aircraft["lat"] = float(parts[14])
+                                    aircraft["lon"] = float(parts[15])
                                 except (ValueError, TypeError):
                                     pass
 
-                        elif msg_type == '4' and len(parts) > 16:
+                        elif msg_type == "4" and len(parts) > 16:
                             if parts[12]:
                                 with contextlib.suppress(ValueError, TypeError):
-                                    aircraft['speed'] = int(float(parts[12]))
+                                    aircraft["speed"] = int(float(parts[12]))
                             if parts[13]:
                                 with contextlib.suppress(ValueError, TypeError):
-                                    aircraft['heading'] = int(float(parts[13]))
+                                    aircraft["heading"] = int(float(parts[13]))
                             if parts[16]:
                                 try:
-                                    aircraft['vertical_rate'] = int(float(parts[16]))
-                                    if abs(aircraft['vertical_rate']) > 4000:
-                                        process_event('adsb', {
-                                            'type': 'vertical_rate_anomaly', 'icao': icao,
-                                            'callsign': aircraft.get('callsign', ''),
-                                            'vertical_rate': aircraft['vertical_rate'],
-                                        }, 'vertical_rate_anomaly')
+                                    aircraft["vertical_rate"] = int(float(parts[16]))
+                                    if abs(aircraft["vertical_rate"]) > 4000:
+                                        process_event(
+                                            "adsb",
+                                            {
+                                                "type": "vertical_rate_anomaly",
+                                                "icao": icao,
+                                                "callsign": aircraft.get("callsign", ""),
+                                                "vertical_rate": aircraft["vertical_rate"],
+                                            },
+                                            "vertical_rate_anomaly",
+                                        )
                                 except (ValueError, TypeError):
                                     pass
 
-                        elif msg_type == '5' and len(parts) > 11:
+                        elif msg_type == "5" and len(parts) > 11:
                             if parts[10]:
                                 callsign = parts[10].strip()
                                 if callsign:
-                                    aircraft['callsign'] = callsign
+                                    aircraft["callsign"] = callsign
                             if parts[11]:
                                 with contextlib.suppress(ValueError, TypeError):
-                                    aircraft['altitude'] = int(float(parts[11]))
+                                    aircraft["altitude"] = int(float(parts[11]))
 
-                        elif msg_type == '6' and len(parts) > 17:
+                        elif msg_type == "6" and len(parts) > 17:
                             if parts[17]:
-                                aircraft['squawk'] = parts[17]
+                                aircraft["squawk"] = parts[17]
                                 sq = parts[17].strip()
-                                _EMERGENCY_SQUAWKS = {'7700': 'General Emergency', '7600': 'Comms Failure', '7500': 'Hijack'}
+                                _EMERGENCY_SQUAWKS = {
+                                    "7700": "General Emergency",
+                                    "7600": "Comms Failure",
+                                    "7500": "Hijack",
+                                }
                                 if sq in _EMERGENCY_SQUAWKS:
-                                    process_event('adsb', {
-                                        'type': 'squawk_emergency', 'icao': icao,
-                                        'callsign': aircraft.get('callsign', ''),
-                                        'squawk': sq, 'meaning': _EMERGENCY_SQUAWKS[sq],
-                                    }, 'squawk_emergency')
+                                    process_event(
+                                        "adsb",
+                                        {
+                                            "type": "squawk_emergency",
+                                            "icao": icao,
+                                            "callsign": aircraft.get("callsign", ""),
+                                            "squawk": sq,
+                                            "meaning": _EMERGENCY_SQUAWKS[sq],
+                                        },
+                                        "squawk_emergency",
+                                    )
 
-                        elif msg_type == '2' and len(parts) > 15:
+                        elif msg_type == "2" and len(parts) > 15:
                             if parts[11]:
                                 with contextlib.suppress(ValueError, TypeError):
-                                    aircraft['altitude'] = int(float(parts[11]))
+                                    aircraft["altitude"] = int(float(parts[11]))
                             if parts[12]:
                                 with contextlib.suppress(ValueError, TypeError):
-                                    aircraft['speed'] = int(float(parts[12]))
+                                    aircraft["speed"] = int(float(parts[12]))
                             if parts[13]:
                                 with contextlib.suppress(ValueError, TypeError):
-                                    aircraft['heading'] = int(float(parts[13]))
+                                    aircraft["heading"] = int(float(parts[13]))
                             if parts[14] and parts[15]:
                                 try:
-                                    aircraft['lat'] = float(parts[14])
-                                    aircraft['lon'] = float(parts[15])
+                                    aircraft["lat"] = float(parts[14])
+                                    aircraft["lon"] = float(parts[15])
                                 except (ValueError, TypeError):
                                     pass
 
@@ -760,26 +852,28 @@ def parse_sbs_stream(service_addr):
     logger.info("SBS stream parser stopped")
 
 
-@adsb_bp.route('/tools')
+@adsb_bp.route("/tools")
 def check_adsb_tools():
     """Check for ADS-B decoding tools and hardware."""
     # Check available decoders
     has_dump1090 = find_dump1090() is not None
-    has_readsb = shutil.which('readsb') is not None
-    has_rtl_adsb = shutil.which('rtl_adsb') is not None
+    has_readsb = shutil.which("readsb") is not None
+    has_rtl_adsb = shutil.which("rtl_adsb") is not None
 
-    return jsonify({
-        'dump1090': has_dump1090,
-        'readsb': has_readsb,
-        'rtl_adsb': has_rtl_adsb,
-        'has_rtlsdr': None,
-        'has_soapy_sdr': None,
-        'soapy_types': [],
-        'needs_readsb': False
-    })
+    return jsonify(
+        {
+            "dump1090": has_dump1090,
+            "readsb": has_readsb,
+            "rtl_adsb": has_rtl_adsb,
+            "has_rtlsdr": None,
+            "has_soapy_sdr": None,
+            "soapy_types": [],
+            "needs_readsb": False,
+        }
+    )
 
 
-@adsb_bp.route('/status')
+@adsb_bp.route("/status")
 def adsb_status():
     """Get ADS-B tracking status for debugging."""
     # Check if dump1090 process is still running
@@ -787,24 +881,26 @@ def adsb_status():
     if app_module.adsb_process:
         dump1090_running = app_module.adsb_process.poll() is None
 
-    return jsonify({
-        'tracking_active': adsb_using_service,
-        'active_device': adsb_active_device,
-        'connected_to_sbs': adsb_connected,
-        'messages_received': adsb_messages_received,
-        'bytes_received': adsb_bytes_received,
-        'lines_received': adsb_lines_received,
-        'last_message_time': adsb_last_message_time,
-        'aircraft_count': len(app_module.adsb_aircraft),
-        'aircraft': dict(app_module.adsb_aircraft),  # Full aircraft data
-        'queue_size': _adsb_stream_queue_depth(),
-        'dump1090_path': find_dump1090(),
-        'dump1090_running': dump1090_running,
-        'port_30003_open': check_dump1090_service() is not None
-    })
+    return jsonify(
+        {
+            "tracking_active": adsb_using_service,
+            "active_device": adsb_active_device,
+            "connected_to_sbs": adsb_connected,
+            "messages_received": adsb_messages_received,
+            "bytes_received": adsb_bytes_received,
+            "lines_received": adsb_lines_received,
+            "last_message_time": adsb_last_message_time,
+            "aircraft_count": len(app_module.adsb_aircraft),
+            "aircraft": dict(app_module.adsb_aircraft),  # Full aircraft data
+            "queue_size": _adsb_stream_queue_depth(),
+            "dump1090_path": find_dump1090(),
+            "dump1090_running": dump1090_running,
+            "port_30003_open": check_dump1090_service() is not None,
+        }
+    )
 
 
-@adsb_bp.route('/aircraft')
+@adsb_bp.route("/aircraft")
 def adsb_aircraft_export():
     """Export current ADS-B aircraft data as JSON.
 
@@ -821,43 +917,48 @@ def adsb_aircraft_export():
     """
     aircraft = dict(app_module.adsb_aircraft)
 
-    icao_filter = request.args.get('icao', '').upper()
+    icao_filter = request.args.get("icao", "").upper()
     if icao_filter:
         aircraft = {k: v for k, v in aircraft.items() if k.upper() == icao_filter}
 
-    if request.args.get('military') == 'true':
+    if request.args.get("military") == "true":
         try:
             from utils.military_icao import is_military_icao
+
             aircraft = {k: v for k, v in aircraft.items() if is_military_icao(k)}
         except ImportError:
             pass
 
-    return jsonify({
-        'count': len(aircraft),
-        'aircraft': list(aircraft.values()),
-        'sbs_port': 30003,  # dump1090 SBS stream for tools like Virtual Radar Server
-    })
+    return jsonify(
+        {
+            "count": len(aircraft),
+            "aircraft": list(aircraft.values()),
+            "sbs_port": 30003,  # dump1090 SBS stream for tools like Virtual Radar Server
+        }
+    )
 
 
-@adsb_bp.route('/session')
+@adsb_bp.route("/session")
 def adsb_session():
     """Get ADS-B session status and uptime."""
     session = _get_active_session()
     uptime_seconds = None
-    if session and session.get('started_at'):
-        started_at = session['started_at']
+    if session and session.get("started_at"):
+        started_at = session["started_at"]
         if isinstance(started_at, datetime):
             uptime_seconds = int((datetime.now(timezone.utc) - started_at).total_seconds())
-    return jsonify({
-        'tracking_active': adsb_using_service,
-        'connected_to_sbs': adsb_connected,
-        'active_device': adsb_active_device,
-        'session': session,
-        'uptime_seconds': uptime_seconds,
-    })
+    return jsonify(
+        {
+            "tracking_active": adsb_using_service,
+            "connected_to_sbs": adsb_connected,
+            "active_device": adsb_active_device,
+            "session": session,
+            "uptime_seconds": uptime_seconds,
+        }
+    )
 
 
-@adsb_bp.route('/start', methods=['POST'])
+@adsb_bp.route("/start", methods=["POST"])
 def start_adsb():
     """Start ADS-B tracking."""
     global adsb_using_service, adsb_active_device, adsb_active_sdr_type, adsb_bias_t_active
@@ -865,26 +966,24 @@ def start_adsb():
     with app_module.adsb_lock:
         if adsb_using_service:
             session = _get_active_session()
-            return jsonify({
-                'status': 'already_running',
-                'message': 'ADS-B tracking already active',
-                'session': session
-            }), 409
+            return jsonify(
+                {"status": "already_running", "message": "ADS-B tracking already active", "session": session}
+            ), 409
 
     data = request.get_json(silent=True) or {}
-    start_source = data.get('source')
+    start_source = data.get("source")
     started_by = request.remote_addr
 
     # Validate inputs
     try:
-        gain = int(validate_gain(data.get('gain', '40')))
-        device = validate_device_index(data.get('device', '0'))
+        gain = int(validate_gain(data.get("gain", "40")))
+        device = validate_device_index(data.get("device", "0"))
     except ValueError as e:
         return api_error(str(e), 400)
 
     # Check for remote SBS connection (e.g., remote dump1090)
-    remote_sbs_host = data.get('remote_sbs_host')
-    remote_sbs_port = data.get('remote_sbs_port', 30003)
+    remote_sbs_host = data.get("remote_sbs_host")
+    remote_sbs_port = data.get("remote_sbs_port", 30003)
 
     if remote_sbs_host:
         # Validate and connect to remote dump1090 SBS output
@@ -901,17 +1000,15 @@ def start_adsb():
         thread.start()
         session = _record_session_start(
             device_index=device,
-            sdr_type='remote',
+            sdr_type="remote",
             remote_host=remote_sbs_host,
             remote_port=remote_sbs_port,
             start_source=start_source,
             started_by=started_by,
         )
-        return jsonify({
-            'status': 'started',
-            'message': f'Connected to remote dump1090 at {remote_addr}',
-            'session': session
-        })
+        return jsonify(
+            {"status": "started", "message": f"Connected to remote dump1090 at {remote_addr}", "session": session}
+        )
 
     # Kill any stale app-spawned dump1090 from a previous run before checking the port
     cleanup_stale_dump1090()
@@ -925,20 +1022,16 @@ def start_adsb():
         thread.start()
         session = _record_session_start(
             device_index=device,
-            sdr_type='external',
-            remote_host='localhost',
+            sdr_type="external",
+            remote_host="localhost",
             remote_port=ADSB_SBS_PORT,
             start_source=start_source,
             started_by=started_by,
         )
-        return jsonify({
-            'status': 'started',
-            'message': 'Connected to existing dump1090 service',
-            'session': session
-        })
+        return jsonify({"status": "started", "message": "Connected to existing dump1090 service", "session": session})
 
     # Get SDR type from request
-    sdr_type_str = data.get('sdr_type', 'rtlsdr')
+    sdr_type_str = data.get("sdr_type", "rtlsdr")
     try:
         sdr_type = SDRType(sdr_type_str)
     except ValueError:
@@ -949,12 +1042,14 @@ def start_adsb():
     if sdr_type == SDRType.RTL_SDR:
         dump1090_path = find_dump1090()
         if not dump1090_path:
-            return api_error('dump1090 not found. Install dump1090/dump1090-fa or ensure it is in /usr/local/bin/')
+            return api_error("dump1090 not found. Install dump1090/dump1090-fa or ensure it is in /usr/local/bin/")
     else:
         # For LimeSDR/HackRF, check for readsb (dump1090 with SoapySDR support)
-        dump1090_path = shutil.which('readsb') or find_dump1090()
+        dump1090_path = shutil.which("readsb") or find_dump1090()
         if not dump1090_path:
-            return api_error(f'readsb or dump1090 not found for {sdr_type.value}. Install readsb with SoapySDR support.')
+            return api_error(
+                f"readsb or dump1090 not found for {sdr_type.value}. Install readsb with SoapySDR support."
+            )
 
     # Kill any stale app-started process (use process group to ensure full cleanup)
     if app_module.adsb_process:
@@ -974,13 +1069,9 @@ def start_adsb():
 
     # Check if device is available before starting local dump1090
     device_int = int(device)
-    error = app_module.claim_sdr_device(device_int, 'adsb', sdr_type_str)
+    error = app_module.claim_sdr_device(device_int, "adsb", sdr_type_str)
     if error:
-        return jsonify({
-            'status': 'error',
-            'error_type': 'DEVICE_BUSY',
-            'message': error
-        }), 409
+        return jsonify({"status": "error", "error_type": "DEVICE_BUSY", "message": error}), 409
 
     # Track claimed device immediately so stop_adsb() can always release it
     adsb_active_device = device
@@ -991,13 +1082,9 @@ def start_adsb():
     builder = SDRFactory.get_builder(sdr_type)
 
     # Build ADS-B decoder command
-    bias_t = data.get('bias_t', False)
+    bias_t = data.get("bias_t", False)
     adsb_bias_t_active = bias_t
-    cmd = builder.build_adsb_command(
-        device=sdr_device,
-        gain=float(gain),
-        bias_t=bias_t
-    )
+    cmd = builder.build_adsb_command(device=sdr_device, gain=float(gain), bias_t=bias_t)
 
     # Ensure we use the resolved binary path for all SDR types
     cmd[0] = dump1090_path
@@ -1008,7 +1095,7 @@ def start_adsb():
             cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
-            start_new_session=True  # Create new process group for clean shutdown
+            start_new_session=True,  # Create new process group for clean shutdown
         )
         write_dump1090_pid(app_module.adsb_process.pid)
 
@@ -1030,57 +1117,61 @@ def start_adsb():
             app_module.release_sdr_device(device_int, sdr_type_str)
             adsb_active_device = None
             adsb_active_sdr_type = None
-            stderr_output = ''
+            stderr_output = ""
             if app_module.adsb_process.stderr:
                 with contextlib.suppress(Exception):
-                    stderr_output = app_module.adsb_process.stderr.read().decode('utf-8', errors='ignore').strip()
+                    stderr_output = app_module.adsb_process.stderr.read().decode("utf-8", errors="ignore").strip()
 
             # Parse stderr to provide specific guidance
-            error_type = 'START_FAILED'
+            error_type = "START_FAILED"
             stderr_lower = stderr_output.lower()
 
             sdr_label = sdr_type.value
 
-            if 'usb_claim_interface' in stderr_lower or 'libusb_error_busy' in stderr_lower or 'device or resource busy' in stderr_lower:
-                error_msg = 'SDR device is busy. Another process may be using it.'
+            if (
+                "usb_claim_interface" in stderr_lower
+                or "libusb_error_busy" in stderr_lower
+                or "device or resource busy" in stderr_lower
+            ):
+                error_msg = "SDR device is busy. Another process may be using it."
                 suggestion = 'Try: 1) Stop other SDR applications, 2) Run "pkill -f rtl_" to kill stale processes, or 3) Remove and reinsert the SDR device.'
-                error_type = 'DEVICE_BUSY'
-            elif 'no hackrf boards found' in stderr_lower or 'hackrf_open' in stderr_lower:
-                error_msg = f'{sdr_label} device not found.'
-                suggestion = 'Ensure the HackRF is connected. Try removing and reinserting the device.'
-                error_type = 'DEVICE_NOT_FOUND'
-            elif 'soapysdr not found' in stderr_lower or 'soapy' in stderr_lower and 'not found' in stderr_lower:
-                error_msg = f'SoapySDR driver not found for {sdr_label}.'
-                suggestion = f'Install SoapySDR and the {sdr_label} module (e.g., soapysdr-module-hackrf).'
-                error_type = 'DRIVER_NOT_FOUND'
-            elif 'no supported devices' in stderr_lower or 'no rtl-sdr' in stderr_lower or 'failed to open' in stderr_lower:
-                error_msg = f'{sdr_label} device not found.'
-                suggestion = 'Ensure the device is connected. Try removing and reinserting the SDR.'
-                error_type = 'DEVICE_NOT_FOUND'
-            elif 'kernel driver is active' in stderr_lower or 'dvb' in stderr_lower:
-                error_msg = 'Kernel DVB-T driver is blocking the device.'
+                error_type = "DEVICE_BUSY"
+            elif "no hackrf boards found" in stderr_lower or "hackrf_open" in stderr_lower:
+                error_msg = f"{sdr_label} device not found."
+                suggestion = "Ensure the HackRF is connected. Try removing and reinserting the device."
+                error_type = "DEVICE_NOT_FOUND"
+            elif "soapysdr not found" in stderr_lower or "soapy" in stderr_lower and "not found" in stderr_lower:
+                error_msg = f"SoapySDR driver not found for {sdr_label}."
+                suggestion = f"Install SoapySDR and the {sdr_label} module (e.g., soapysdr-module-hackrf)."
+                error_type = "DRIVER_NOT_FOUND"
+            elif (
+                "no supported devices" in stderr_lower
+                or "no rtl-sdr" in stderr_lower
+                or "failed to open" in stderr_lower
+            ):
+                error_msg = f"{sdr_label} device not found."
+                suggestion = "Ensure the device is connected. Try removing and reinserting the SDR."
+                error_type = "DEVICE_NOT_FOUND"
+            elif "kernel driver is active" in stderr_lower or "dvb" in stderr_lower:
+                error_msg = "Kernel DVB-T driver is blocking the device."
                 suggestion = 'Blacklist the DVB drivers: Go to Settings > Hardware > "Blacklist DVB Drivers" or run "sudo rmmod dvb_usb_rtl28xxu".'
-                error_type = 'KERNEL_DRIVER'
-            elif 'permission' in stderr_lower or 'access' in stderr_lower:
-                error_msg = f'Permission denied accessing {sdr_label} device.'
-                suggestion = f'Run Intercept with sudo, or add udev rules for {sdr_label} devices.'
-                error_type = 'PERMISSION_DENIED'
+                error_type = "KERNEL_DRIVER"
+            elif "permission" in stderr_lower or "access" in stderr_lower:
+                error_msg = f"Permission denied accessing {sdr_label} device."
+                suggestion = f"Run Intercept with sudo, or add udev rules for {sdr_label} devices."
+                error_type = "PERMISSION_DENIED"
             elif sdr_type == SDRType.RTL_SDR:
-                error_msg = 'dump1090 failed to start.'
-                suggestion = 'Try removing and reinserting the SDR device, or check if another application is using it.'
+                error_msg = "dump1090 failed to start."
+                suggestion = "Try removing and reinserting the SDR device, or check if another application is using it."
             else:
-                error_msg = f'ADS-B decoder failed to start for {sdr_label}.'
-                suggestion = 'Ensure readsb is installed with SoapySDR support and the device is connected.'
+                error_msg = f"ADS-B decoder failed to start for {sdr_label}."
+                suggestion = "Ensure readsb is installed with SoapySDR support and the device is connected."
 
-            full_msg = f'{error_msg} {suggestion}'
+            full_msg = f"{error_msg} {suggestion}"
             if stderr_output and len(stderr_output) < 300:
-                full_msg += f' (Details: {stderr_output})'
+                full_msg += f" (Details: {stderr_output})"
 
-            return jsonify({
-                'status': 'error',
-                'error_type': error_type,
-                'message': full_msg
-            })
+            return jsonify({"status": "error", "error_type": error_type, "message": full_msg})
 
         # dump1090 is still running but SBS port never came up — device may be
         # held by a stale process from a previous mode.  Kill it so the USB
@@ -1102,18 +1193,20 @@ def start_adsb():
             app_module.release_sdr_device(device_int, sdr_type_str)
             adsb_active_device = None
             adsb_active_sdr_type = None
-            return jsonify({
-                'status': 'error',
-                'error_type': 'DEVICE_BUSY',
-                'message': (
-                    'SDR device did not become ready in time. '
-                    'Another mode may still be releasing the device. '
-                    'Please wait a moment and try again.'
-                ),
-            })
+            return jsonify(
+                {
+                    "status": "error",
+                    "error_type": "DEVICE_BUSY",
+                    "message": (
+                        "SDR device did not become ready in time. "
+                        "Another mode may still be releasing the device. "
+                        "Please wait a moment and try again."
+                    ),
+                }
+            )
 
         adsb_using_service = True
-        thread = threading.Thread(target=parse_sbs_stream, args=(f'localhost:{ADSB_SBS_PORT}',), daemon=True)
+        thread = threading.Thread(target=parse_sbs_stream, args=(f"localhost:{ADSB_SBS_PORT}",), daemon=True)
         thread.start()
 
         session = _record_session_start(
@@ -1124,12 +1217,7 @@ def start_adsb():
             start_source=start_source,
             started_by=started_by,
         )
-        return jsonify({
-            'status': 'started',
-            'message': 'ADS-B tracking started',
-            'device': device,
-            'session': session
-        })
+        return jsonify({"status": "started", "message": "ADS-B tracking started", "device": device, "session": session})
     except Exception as e:
         # Release device on failure
         app_module.release_sdr_device(device_int, sdr_type_str)
@@ -1138,12 +1226,12 @@ def start_adsb():
         return api_error(str(e))
 
 
-@adsb_bp.route('/stop', methods=['POST'])
+@adsb_bp.route("/stop", methods=["POST"])
 def stop_adsb():
     """Stop ADS-B tracking."""
     global adsb_using_service, adsb_active_device, adsb_active_sdr_type, adsb_bias_t_active
     data = request.get_json(silent=True) or {}
-    stop_source = data.get('source')
+    stop_source = data.get("source")
     stopped_by = request.remote_addr
 
     with app_module.adsb_lock:
@@ -1166,14 +1254,15 @@ def stop_adsb():
 
         # Turn off bias-T if it was enabled at start — the hardware register
         # persists after the device is closed, so we must explicitly disable it.
-        if adsb_bias_t_active and (adsb_active_sdr_type or 'rtlsdr') == 'rtlsdr':
+        if adsb_bias_t_active and (adsb_active_sdr_type or "rtlsdr") == "rtlsdr":
             from utils.sdr.rtlsdr import disable_bias_t_via_rtl_biast
+
             disable_bias_t_via_rtl_biast(adsb_active_device or 0)
         adsb_bias_t_active = False
 
         # Release device from registry
         if adsb_active_device is not None:
-            app_module.release_sdr_device(adsb_active_device, adsb_active_sdr_type or 'rtlsdr')
+            app_module.release_sdr_device(adsb_active_device, adsb_active_sdr_type or "rtlsdr")
 
         adsb_using_service = False
         adsb_active_device = None
@@ -1182,10 +1271,10 @@ def stop_adsb():
     app_module.adsb_aircraft.clear()
     _looked_up_icaos.clear()
     session = _record_session_stop(stop_source=stop_source, stopped_by=stopped_by)
-    return jsonify({'status': 'stopped', 'session': session})
+    return jsonify({"status": "stopped", "session": session})
 
 
-@adsb_bp.route('/stream')
+@adsb_bp.route("/stream")
 def stream_adsb():
     """SSE stream for ADS-B aircraft."""
     client_queue: queue.Queue = queue.Queue(maxsize=_ADSB_STREAM_CLIENT_QUEUE_SIZE)
@@ -1196,7 +1285,7 @@ def stream_adsb():
     # next positional update before rendering.
     for snapshot in list(app_module.adsb_aircraft.values()):
         try:
-            client_queue.put_nowait({'type': 'aircraft', **snapshot})
+            client_queue.put_nowait({"type": "aircraft", **snapshot})
         except queue.Full:
             break
 
@@ -1204,7 +1293,7 @@ def stream_adsb():
         last_keepalive = time.time()
         # Send immediate keepalive so Werkzeug dev server flushes response
         # headers right away (it buffers until first body byte is written).
-        yield format_sse({'type': 'keepalive'})
+        yield format_sse({"type": "keepalive"})
 
         try:
             while True:
@@ -1212,29 +1301,29 @@ def stream_adsb():
                     msg = client_queue.get(timeout=SSE_QUEUE_TIMEOUT)
                     last_keepalive = time.time()
                     with contextlib.suppress(Exception):
-                        process_event('adsb', msg, msg.get('type'))
+                        process_event("adsb", msg, msg.get("type"))
                     yield format_sse(msg)
                 except queue.Empty:
                     now = time.time()
                     if now - last_keepalive >= SSE_KEEPALIVE_INTERVAL:
-                        yield format_sse({'type': 'keepalive'})
+                        yield format_sse({"type": "keepalive"})
                         last_keepalive = now
         finally:
             with _adsb_stream_subscribers_lock:
                 _adsb_stream_subscribers.discard(client_queue)
 
-    response = Response(generate(), mimetype='text/event-stream')
-    response.headers['Cache-Control'] = 'no-cache'
-    response.headers['X-Accel-Buffering'] = 'no'
+    response = Response(generate(), mimetype="text/event-stream")
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
     return response
 
 
-@adsb_bp.route('/dashboard')
+@adsb_bp.route("/dashboard")
 def adsb_dashboard():
     """Popout ADS-B dashboard."""
-    embedded = request.args.get('embedded', 'false') == 'true'
+    embedded = request.args.get("embedded", "false") == "true"
     return render_template(
-        'adsb_dashboard.html',
+        "adsb_dashboard.html",
         shared_observer_location=SHARED_OBSERVER_LOCATION_ENABLED,
         adsb_auto_start=ADSB_AUTO_START,
         default_latitude=DEFAULT_LATITUDE,
@@ -1243,24 +1332,24 @@ def adsb_dashboard():
     )
 
 
-@adsb_bp.route('/history')
+@adsb_bp.route("/history")
 def adsb_history():
     """ADS-B history reporting dashboard."""
     history_available = ADSB_HISTORY_ENABLED and PSYCOPG2_AVAILABLE
-    resp = make_response(render_template('adsb_history.html', history_enabled=history_available))
-    resp.headers['Cache-Control'] = 'no-store'
+    resp = make_response(render_template("adsb_history.html", history_enabled=history_available))
+    resp.headers["Cache-Control"] = "no-store"
     return resp
 
 
-@adsb_bp.route('/history/summary')
+@adsb_bp.route("/history/summary")
 def adsb_history_summary():
     """Summary stats for ADS-B history window."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return api_error('ADS-B history is disabled', 503)
+        return api_error("ADS-B history is disabled", 503)
     _ensure_history_schema()
 
-    since_minutes = _parse_int_param(request.args.get('since_minutes'), 1440, 1, 10080)
-    window = f'{since_minutes} minutes'
+    since_minutes = _parse_int_param(request.args.get("since_minutes"), 1440, 1, 10080)
+    window = f"{since_minutes} minutes"
 
     sql = """
         SELECT
@@ -1278,21 +1367,21 @@ def adsb_history_summary():
         return jsonify(row)
     except Exception as exc:
         logger.warning("ADS-B history summary failed: %s", exc)
-        return api_error('History database unavailable', 503)
+        return api_error("History database unavailable", 503)
 
 
-@adsb_bp.route('/history/aircraft')
+@adsb_bp.route("/history/aircraft")
 def adsb_history_aircraft():
     """List latest aircraft snapshots for a time window."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return api_error('ADS-B history is disabled', 503)
+        return api_error("ADS-B history is disabled", 503)
     _ensure_history_schema()
 
-    since_minutes = _parse_int_param(request.args.get('since_minutes'), 1440, 1, 10080)
-    limit = _parse_int_param(request.args.get('limit'), 200, 1, 2000)
-    search = (request.args.get('search') or '').strip()
-    window = f'{since_minutes} minutes'
-    pattern = f'%{search}%'
+    since_minutes = _parse_int_param(request.args.get("since_minutes"), 1440, 1, 10080)
+    limit = _parse_int_param(request.args.get("limit"), 200, 1, 2000)
+    search = (request.args.get("search") or "").strip()
+    window = f"{since_minutes} minutes"
+    pattern = f"%{search}%"
 
     sql = """
         SELECT *
@@ -1324,26 +1413,26 @@ def adsb_history_aircraft():
         with _get_history_connection() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, (window, search, pattern, pattern, pattern, limit))
             rows = cur.fetchall()
-        return jsonify({'aircraft': rows, 'count': len(rows)})
+        return jsonify({"aircraft": rows, "count": len(rows)})
     except Exception as exc:
         logger.warning("ADS-B history aircraft query failed: %s", exc)
-        return api_error('History database unavailable', 503)
+        return api_error("History database unavailable", 503)
 
 
-@adsb_bp.route('/history/timeline')
+@adsb_bp.route("/history/timeline")
 def adsb_history_timeline():
     """Timeline snapshots for a specific aircraft."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return api_error('ADS-B history is disabled', 503)
+        return api_error("ADS-B history is disabled", 503)
     _ensure_history_schema()
 
-    icao = (request.args.get('icao') or '').strip().upper()
+    icao = (request.args.get("icao") or "").strip().upper()
     if not icao:
-        return api_error('icao is required', 400)
+        return api_error("icao is required", 400)
 
-    since_minutes = _parse_int_param(request.args.get('since_minutes'), 1440, 1, 10080)
-    limit = _parse_int_param(request.args.get('limit'), 2000, 1, 20000)
-    window = f'{since_minutes} minutes'
+    since_minutes = _parse_int_param(request.args.get("since_minutes"), 1440, 1, 10080)
+    limit = _parse_int_param(request.args.get("limit"), 2000, 1, 20000)
+    window = f"{since_minutes} minutes"
 
     sql = """
         SELECT captured_at, altitude, speed, heading, vertical_rate, lat, lon, squawk
@@ -1358,23 +1447,23 @@ def adsb_history_timeline():
         with _get_history_connection() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, (icao, window, limit))
             rows = cur.fetchall()
-        return jsonify({'icao': icao, 'timeline': rows, 'count': len(rows)})
+        return jsonify({"icao": icao, "timeline": rows, "count": len(rows)})
     except Exception as exc:
         logger.warning("ADS-B history timeline query failed: %s", exc)
-        return api_error('History database unavailable', 503)
+        return api_error("History database unavailable", 503)
 
 
-@adsb_bp.route('/history/messages')
+@adsb_bp.route("/history/messages")
 def adsb_history_messages():
     """Raw message history for a specific aircraft."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return api_error('ADS-B history is disabled', 503)
+        return api_error("ADS-B history is disabled", 503)
     _ensure_history_schema()
 
-    icao = (request.args.get('icao') or '').strip().upper()
-    since_minutes = _parse_int_param(request.args.get('since_minutes'), 30, 1, 10080)
-    limit = _parse_int_param(request.args.get('limit'), 200, 1, 2000)
-    window = f'{since_minutes} minutes'
+    icao = (request.args.get("icao") or "").strip().upper()
+    since_minutes = _parse_int_param(request.args.get("since_minutes"), 30, 1, 10080)
+    limit = _parse_int_param(request.args.get("limit"), 200, 1, 2000)
+    window = f"{since_minutes} minutes"
 
     sql = """
         SELECT received_at, msg_type, callsign, altitude, speed, heading, vertical_rate, lat, lon, squawk
@@ -1389,33 +1478,33 @@ def adsb_history_messages():
         with _get_history_connection() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, (window, icao, icao, limit))
             rows = cur.fetchall()
-        return jsonify({'icao': icao, 'messages': rows, 'count': len(rows)})
+        return jsonify({"icao": icao, "messages": rows, "count": len(rows)})
     except Exception as exc:
         logger.warning("ADS-B history message query failed: %s", exc)
-        return api_error('History database unavailable', 503)
+        return api_error("History database unavailable", 503)
 
 
-@adsb_bp.route('/history/export')
+@adsb_bp.route("/history/export")
 def adsb_history_export():
     """Export ADS-B history data in CSV or JSON format."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return api_error('ADS-B history is disabled', 503)
+        return api_error("ADS-B history is disabled", 503)
     _ensure_history_schema()
 
-    export_format = str(request.args.get('format') or 'csv').strip().lower()
-    export_type = str(request.args.get('type') or 'all').strip().lower()
-    if export_format not in {'csv', 'json'}:
-        return api_error('format must be csv or json', 400)
-    if export_type not in {'messages', 'snapshots', 'sessions', 'all'}:
-        return api_error('type must be messages, snapshots, sessions, or all', 400)
+    export_format = str(request.args.get("format") or "csv").strip().lower()
+    export_type = str(request.args.get("type") or "all").strip().lower()
+    if export_format not in {"csv", "json"}:
+        return api_error("format must be csv or json", 400)
+    if export_type not in {"messages", "snapshots", "sessions", "all"}:
+        return api_error("type must be messages, snapshots, sessions, or all", 400)
 
     scope, since_minutes, start, end = _parse_export_scope(request.args)
-    icao = (request.args.get('icao') or '').strip().upper()
-    search = (request.args.get('search') or '').strip()
-    classification = str(request.args.get('classification') or 'all').strip().lower()
-    if classification not in {'all', 'military', 'civilian'}:
-        classification = 'all'
-    pattern = f'%{search}%'
+    icao = (request.args.get("icao") or "").strip().upper()
+    search = (request.args.get("search") or "").strip()
+    classification = str(request.args.get("classification") or "all").strip().lower()
+    if classification not in {"all", "military", "civilian"}:
+        classification = "all"
+    pattern = f"%{search}%"
 
     snapshots: list[dict[str, Any]] = []
     messages: list[dict[str, Any]] = []
@@ -1423,27 +1512,24 @@ def adsb_history_export():
 
     def _filter_by_classification(
         rows: list[dict[str, Any]],
-        icao_key: str = 'icao',
-        callsign_key: str = 'callsign',
+        icao_key: str = "icao",
+        callsign_key: str = "callsign",
     ) -> list[dict[str, Any]]:
-        if classification == 'all':
+        if classification == "all":
             return rows
-        want_military = classification == 'military'
-        return [
-            r for r in rows
-            if _is_military_aircraft(r.get(icao_key, ''), r.get(callsign_key)) == want_military
-        ]
+        want_military = classification == "military"
+        return [r for r in rows if _is_military_aircraft(r.get(icao_key, ""), r.get(callsign_key)) == want_military]
 
     try:
         with _get_history_connection() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
-            if export_type in {'snapshots', 'all'}:
+            if export_type in {"snapshots", "all"}:
                 snapshot_where: list[str] = []
                 snapshot_params: list[Any] = []
                 _add_time_filter(
                     where_parts=snapshot_where,
                     params=snapshot_params,
                     scope=scope,
-                    timestamp_field='captured_at',
+                    timestamp_field="captured_at",
                     since_minutes=since_minutes,
                     start=start,
                     end=end,
@@ -1466,14 +1552,14 @@ def adsb_history_export():
                 cur.execute(snapshot_sql, tuple(snapshot_params))
                 snapshots = _filter_by_classification(cur.fetchall())
 
-            if export_type in {'messages', 'all'}:
+            if export_type in {"messages", "all"}:
                 message_where: list[str] = []
                 message_params: list[Any] = []
                 _add_time_filter(
                     where_parts=message_where,
                     params=message_params,
                     scope=scope,
-                    timestamp_field='received_at',
+                    timestamp_field="received_at",
                     since_minutes=since_minutes,
                     start=start,
                     end=end,
@@ -1497,15 +1583,15 @@ def adsb_history_export():
                 cur.execute(message_sql, tuple(message_params))
                 messages = _filter_by_classification(cur.fetchall())
 
-            if export_type in {'sessions', 'all'}:
+            if export_type in {"sessions", "all"}:
                 session_where: list[str] = []
                 session_params: list[Any] = []
-                if scope == 'custom' and start is not None and end is not None:
+                if scope == "custom" and start is not None and end is not None:
                     session_where.append("COALESCE(ended_at, %s) >= %s AND started_at < %s")
                     session_params.extend([end, start, end])
-                elif scope == 'window':
+                elif scope == "window":
                     session_where.append("COALESCE(ended_at, NOW()) >= NOW() - INTERVAL %s")
-                    session_params.append(f'{since_minutes} minutes')
+                    session_params.append(f"{since_minutes} minutes")
 
                 session_sql = """
                         SELECT id, started_at, ended_at, device_index, sdr_type, remote_host,
@@ -1519,47 +1605,47 @@ def adsb_history_export():
                 sessions = cur.fetchall()
     except Exception as exc:
         logger.warning("ADS-B history export failed: %s", exc)
-        return api_error('History database unavailable', 503)
+        return api_error("History database unavailable", 503)
 
     exported_at = datetime.now(timezone.utc).isoformat()
-    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
-    filename_scope = 'all' if scope == 'all' else ('custom' if scope == 'custom' else f'{since_minutes}m')
-    filename = f'adsb_history_{export_type}_{filename_scope}_{timestamp}.{export_format}'
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename_scope = "all" if scope == "all" else ("custom" if scope == "custom" else f"{since_minutes}m")
+    filename = f"adsb_history_{export_type}_{filename_scope}_{timestamp}.{export_format}"
 
-    if export_format == 'json':
+    if export_format == "json":
         payload = {
-            'exported_at': exported_at,
-            'format': export_format,
-            'type': export_type,
-            'scope': scope,
-            'since_minutes': None if scope != 'window' else since_minutes,
-            'filters': {
-                'icao': icao or None,
-                'search': search or None,
-                'classification': classification,
-                'start': start.isoformat() if start else None,
-                'end': end.isoformat() if end else None,
+            "exported_at": exported_at,
+            "format": export_format,
+            "type": export_type,
+            "scope": scope,
+            "since_minutes": None if scope != "window" else since_minutes,
+            "filters": {
+                "icao": icao or None,
+                "search": search or None,
+                "classification": classification,
+                "start": start.isoformat() if start else None,
+                "end": end.isoformat() if end else None,
             },
-            'counts': {
-                'messages': len(messages),
-                'snapshots': len(snapshots),
-                'sessions': len(sessions),
+            "counts": {
+                "messages": len(messages),
+                "snapshots": len(snapshots),
+                "sessions": len(sessions),
             },
-            'messages': _rows_to_serializable(messages),
-            'snapshots': _rows_to_serializable(snapshots),
-            'sessions': _rows_to_serializable(sessions),
+            "messages": _rows_to_serializable(messages),
+            "snapshots": _rows_to_serializable(snapshots),
+            "sessions": _rows_to_serializable(sessions),
         }
         response = Response(
             json.dumps(payload, indent=2, default=str),
-            mimetype='application/json',
+            mimetype="application/json",
         )
-        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
         return response
 
     csv_data = _build_export_csv(
         exported_at=exported_at,
         scope=scope,
-        since_minutes=since_minutes if scope == 'window' else None,
+        since_minutes=since_minutes if scope == "window" else None,
         icao=icao,
         search=search,
         classification=classification,
@@ -1568,47 +1654,49 @@ def adsb_history_export():
         sessions=sessions,
         export_type=export_type,
     )
-    response = Response(csv_data, mimetype='text/csv')
-    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    response = Response(csv_data, mimetype="text/csv")
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
 
 
-@adsb_bp.route('/history/prune', methods=['POST'])
+@adsb_bp.route("/history/prune", methods=["POST"])
 def adsb_history_prune():
     """Delete ADS-B history for a selected time range or entire dataset."""
     if not ADSB_HISTORY_ENABLED or not PSYCOPG2_AVAILABLE:
-        return api_error('ADS-B history is disabled', 503)
+        return api_error("ADS-B history is disabled", 503)
     _ensure_history_schema()
 
     payload = request.get_json(silent=True) or {}
-    mode = str(payload.get('mode') or 'range').strip().lower()
-    if mode not in {'range', 'all'}:
-        return api_error('mode must be range or all', 400)
+    mode = str(payload.get("mode") or "range").strip().lower()
+    if mode not in {"range", "all"}:
+        return api_error("mode must be range or all", 400)
 
     try:
         with _get_history_connection() as conn, conn.cursor() as cur:
-            deleted = {'messages': 0, 'snapshots': 0}
+            deleted = {"messages": 0, "snapshots": 0}
 
-            if mode == 'all':
+            if mode == "all":
                 cur.execute("DELETE FROM adsb_messages")
-                deleted['messages'] = max(0, cur.rowcount or 0)
+                deleted["messages"] = max(0, cur.rowcount or 0)
                 cur.execute("DELETE FROM adsb_snapshots")
-                deleted['snapshots'] = max(0, cur.rowcount or 0)
-                return jsonify({
-                    'status': 'ok',
-                    'mode': 'all',
-                    'deleted': deleted,
-                    'total_deleted': deleted['messages'] + deleted['snapshots'],
-                })
+                deleted["snapshots"] = max(0, cur.rowcount or 0)
+                return jsonify(
+                    {
+                        "status": "ok",
+                        "mode": "all",
+                        "deleted": deleted,
+                        "total_deleted": deleted["messages"] + deleted["snapshots"],
+                    }
+                )
 
-            start = _parse_iso_datetime(payload.get('start'))
-            end = _parse_iso_datetime(payload.get('end'))
+            start = _parse_iso_datetime(payload.get("start"))
+            end = _parse_iso_datetime(payload.get("end"))
             if start is None or end is None:
-                return api_error('start and end ISO datetime values are required', 400)
+                return api_error("start and end ISO datetime values are required", 400)
             if end <= start:
-                return api_error('end must be after start', 400)
+                return api_error("end must be after start", 400)
             if end - start > timedelta(days=31):
-                return api_error('range cannot exceed 31 days', 400)
+                return api_error("range cannot exceed 31 days", 400)
 
             cur.execute(
                 """
@@ -1618,7 +1706,7 @@ def adsb_history_prune():
                     """,
                 (start, end),
             )
-            deleted['messages'] = max(0, cur.rowcount or 0)
+            deleted["messages"] = max(0, cur.rowcount or 0)
 
             cur.execute(
                 """
@@ -1628,101 +1716,104 @@ def adsb_history_prune():
                     """,
                 (start, end),
             )
-            deleted['snapshots'] = max(0, cur.rowcount or 0)
+            deleted["snapshots"] = max(0, cur.rowcount or 0)
 
-            return jsonify({
-                'status': 'ok',
-                'mode': 'range',
-                'start': start.isoformat(),
-                'end': end.isoformat(),
-                'deleted': deleted,
-                'total_deleted': deleted['messages'] + deleted['snapshots'],
-            })
+            return jsonify(
+                {
+                    "status": "ok",
+                    "mode": "range",
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "deleted": deleted,
+                    "total_deleted": deleted["messages"] + deleted["snapshots"],
+                }
+            )
     except Exception as exc:
         logger.warning("ADS-B history prune failed: %s", exc)
-        return api_error('History database unavailable', 503)
+        return api_error("History database unavailable", 503)
 
 
 # ============================================
 # AIRCRAFT DATABASE MANAGEMENT
 # ============================================
 
-@adsb_bp.route('/aircraft-db/status')
+
+@adsb_bp.route("/aircraft-db/status")
 def aircraft_db_status():
     """Get aircraft database status."""
     return jsonify(aircraft_db.get_db_status())
 
 
-@adsb_bp.route('/aircraft-db/check-updates')
+@adsb_bp.route("/aircraft-db/check-updates")
 def aircraft_db_check_updates():
     """Check for aircraft database updates."""
     result = aircraft_db.check_for_updates()
     return jsonify(result)
 
 
-@adsb_bp.route('/aircraft-db/download', methods=['POST'])
+@adsb_bp.route("/aircraft-db/download", methods=["POST"])
 def aircraft_db_download():
     """Download/update aircraft database."""
     global _looked_up_icaos
     result = aircraft_db.download_database()
-    if result.get('success'):
+    if result.get("success"):
         # Clear lookup cache so new data is used
         _looked_up_icaos.clear()
     return jsonify(result)
 
 
-@adsb_bp.route('/aircraft-db/delete', methods=['POST'])
+@adsb_bp.route("/aircraft-db/delete", methods=["POST"])
 def aircraft_db_delete():
     """Delete aircraft database."""
     result = aircraft_db.delete_database()
     return jsonify(result)
 
 
-@adsb_bp.route('/aircraft-photo/<registration>')
+@adsb_bp.route("/aircraft-photo/<registration>")
 def aircraft_photo(registration: str):
     """Fetch aircraft photo from Planespotters.net API."""
     import requests
 
     # Validate registration format (alphanumeric with dashes)
-    if not registration or not all(c.isalnum() or c == '-' for c in registration):
-        return api_error('Invalid registration', 400)
+    if not registration or not all(c.isalnum() or c == "-" for c in registration):
+        return api_error("Invalid registration", 400)
 
     try:
         # Planespotters.net public API
-        url = f'https://api.planespotters.net/pub/photos/reg/{registration}'
-        resp = requests.get(url, timeout=5, headers={
-            'User-Agent': 'INTERCEPT-ADS-B/1.0'
-        })
+        url = f"https://api.planespotters.net/pub/photos/reg/{registration}"
+        resp = requests.get(url, timeout=5, headers={"User-Agent": "INTERCEPT-ADS-B/1.0"})
 
         if resp.status_code == 200:
             data = resp.json()
-            if data.get('photos') and len(data['photos']) > 0:
-                photo = data['photos'][0]
-                return jsonify({
-                    'success': True,
-                    'thumbnail': photo.get('thumbnail_large', {}).get('src'),
-                    'link': photo.get('link'),
-                    'photographer': photo.get('photographer')
-                })
+            if data.get("photos") and len(data["photos"]) > 0:
+                photo = data["photos"][0]
+                return jsonify(
+                    {
+                        "success": True,
+                        "thumbnail": (photo.get("thumbnail_large") or photo.get("thumbnail") or {}).get("src"),
+                        "link": photo.get("link"),
+                        "photographer": photo.get("photographer"),
+                    }
+                )
 
-        return jsonify({'success': False, 'error': 'No photo found'})
+        return jsonify({"success": False, "error": "No photo found"})
 
     except requests.Timeout:
-        return jsonify({'success': False, 'error': 'Request timeout'}), 504
+        return jsonify({"success": False, "error": "Request timeout"}), 504
     except Exception as e:
         logger.debug(f"Error fetching aircraft photo: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@adsb_bp.route('/aircraft/<icao>/messages')
+@adsb_bp.route("/aircraft/<icao>/messages")
 def get_aircraft_messages(icao: str):
     """Get correlated ACARS/VDL2 messages for an aircraft."""
-    if not icao or not all(c in '0123456789ABCDEFabcdef' for c in icao):
-        return api_error('Invalid ICAO', 400)
+    if not icao or not all(c in "0123456789ABCDEFabcdef" for c in icao):
+        return api_error("Invalid ICAO", 400)
 
     aircraft = app_module.adsb_aircraft.get(icao.upper())
-    callsign = aircraft.get('callsign') if aircraft else None
-    registration = aircraft.get('registration') if aircraft else None
+    callsign = aircraft.get("callsign") if aircraft else None
+    registration = aircraft.get("registration") if aircraft else None
 
     messages = get_flight_correlator().get_messages_for_aircraft(
         icao=icao.upper(), callsign=callsign, registration=registration
@@ -1730,13 +1821,13 @@ def get_aircraft_messages(icao: str):
 
     # Backfill translation on messages missing label_description
     try:
-        for msg in messages.get('acars', []):
-            if not msg.get('label_description'):
+        for msg in messages.get("acars", []):
+            if not msg.get("label_description"):
                 translation = translate_message(msg)
-                msg['label_description'] = translation['label_description']
-                msg['message_type'] = translation['message_type']
-                msg['parsed'] = translation['parsed']
+                msg["label_description"] = translation["label_description"]
+                msg["message_type"] = translation["message_type"]
+                msg["parsed"] = translation["parsed"]
     except Exception:
         pass
 
-    return api_success(data={'icao': icao.upper(), **messages})
+    return api_success(data={"icao": icao.upper(), **messages})

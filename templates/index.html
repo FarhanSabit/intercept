@@ -102,7 +102,8 @@
             radiosonde: "{{ url_for('static', filename='css/modes/radiosonde.css') }}",
             meteor: "{{ url_for('static', filename='css/modes/meteor.css') }}",
             system: "{{ url_for('static', filename='css/modes/system.css') }}",
-            ook: "{{ url_for('static', filename='css/modes/ook.css') }}"
+            ook: "{{ url_for('static', filename='css/modes/ook.css') }}",
+            drone: "{{ url_for('static', filename='css/modes/drone.css') }}"
         };
         window.INTERCEPT_MODE_STYLE_LOADED = {};
         window.INTERCEPT_MODE_STYLE_PROMISES = {};
@@ -186,7 +187,8 @@
             spaceweather: "{{ url_for('static', filename='js/modes/space-weather.js') }}",
             system: "{{ url_for('static', filename='js/modes/system.js') }}",
             meteor: "{{ url_for('static', filename='js/modes/meteor.js') }}",
-            waterfall: "{{ url_for('static', filename='js/modes/waterfall.js') }}?v={{ version }}&r=wfdeck21"
+            waterfall: "{{ url_for('static', filename='js/modes/waterfall.js') }}?v={{ version }}&r=wfdeck21",
+            drone: "{{ url_for('static', filename='js/modes/drone.js') }}"
         };
         window.INTERCEPT_MODE_SCRIPT_LOADED = {};
         window.INTERCEPT_MODE_SCRIPT_PROMISES = {};
@@ -763,6 +765,8 @@
                 {% include 'partials/modes/tscm.html' %}
 
                 {% include 'partials/modes/ais.html' %}
+
+                {% include 'partials/modes/drone.html' %}
 
                 {% include 'partials/modes/radiosonde.html' %}
 
@@ -3767,6 +3771,7 @@
             wifi_locate: { label: 'WiFi Locate', indicator: 'WF LOCATE', outputTitle: 'WiFi Locate', group: 'wireless' },
             meshtastic: { label: 'Meshtastic', indicator: 'MESHTASTIC', outputTitle: 'Meshtastic Mesh Monitor', group: 'wireless' },
             tscm: { label: 'TSCM', indicator: 'TSCM', outputTitle: 'TSCM Counter-Surveillance', group: 'intel' },
+            drone: { label: 'Drone Intel', indicator: 'DRONE', outputTitle: 'Drone Intelligence', group: 'intel' },
             spystations: { label: 'Spy Stations', indicator: 'SPY STATIONS', outputTitle: 'Spy Stations', group: 'intel' },
             websdr: { label: 'WebSDR', indicator: 'WEBSDR', outputTitle: 'HF/Shortwave WebSDR', group: 'intel' },
             waterfall: { label: 'Waterfall', indicator: 'WATERFALL', outputTitle: 'Spectrum Waterfall', group: 'signals' },
@@ -4403,6 +4408,7 @@
                 tscm: () => { if (tscmEventSource) { tscmEventSource.close(); tscmEventSource = null; } },
                 meteor: () => typeof MeteorScatter !== 'undefined' && MeteorScatter.destroy?.(),
                 ook: () => typeof OokMode !== 'undefined' && OokMode.destroy?.(),
+                drone: () => typeof DroneMode !== 'undefined' && DroneMode.destroy?.(),
             };
             return moduleDestroyMap[mode] || null;
         }
@@ -4713,6 +4719,7 @@
             document.getElementById('aprsMode')?.classList.toggle('active', mode === 'aprs');
             document.getElementById('tscmMode')?.classList.toggle('active', mode === 'tscm');
             document.getElementById('aisMode')?.classList.toggle('active', mode === 'ais');
+            document.getElementById('droneMode')?.classList.toggle('active', mode === 'drone');
             document.getElementById('radiosondeMode')?.classList.toggle('active', mode === 'radiosonde');
             document.getElementById('spystationsMode')?.classList.toggle('active', mode === 'spystations');
             document.getElementById('meshtasticMode')?.classList.toggle('active', mode === 'meshtastic');
@@ -5011,6 +5018,8 @@
                 SystemHealth.init();
             } else if (mode === 'ook') {
                 OokMode.init();
+            } else if (mode === 'drone') {
+                if (typeof DroneMode !== 'undefined') DroneMode.init();
             }
             if (requestId !== modeSwitchRequestId) return;
 

@@ -3555,17 +3555,15 @@ sudo make install</code>
         const photoCache = {};
 
         async function fetchAircraftPhoto(registration) {
-            const container = document.getElementById('aircraftPhotoContainer');
-            const img = document.getElementById('aircraftPhoto');
-            const link = document.getElementById('aircraftPhotoLink');
-            const credit = document.getElementById('aircraftPhotoCredit');
-
-            if (!container || !img) return;
-
-            // Check cache first
+            // Check cache first (synchronous path — DOM refs are always current here)
             if (photoCache[registration]) {
                 const cached = photoCache[registration];
                 if (cached.thumbnail) {
+                    const container = document.getElementById('aircraftPhotoContainer');
+                    const img = document.getElementById('aircraftPhoto');
+                    const link = document.getElementById('aircraftPhotoLink');
+                    const credit = document.getElementById('aircraftPhotoCredit');
+                    if (!container || !img) return;
                     img.src = cached.thumbnail;
                     link.href = cached.link || '#';
                     credit.textContent = cached.photographer ? `Photo: ${cached.photographer}` : '';
@@ -3574,12 +3572,23 @@ sudo make install</code>
                 return;
             }
 
+            // Guard: bail early if the panel doesn't exist yet
+            if (!document.getElementById('aircraftPhotoContainer')) return;
+
             try {
                 const response = await fetch(`/adsb/aircraft-photo/${encodeURIComponent(registration)}`);
                 const data = await response.json();
 
-                // Cache the result
+                // Cache before touching DOM — subsequent synchronous calls will hit this
                 photoCache[registration] = data;
+
+                // Re-query after the await: showAircraftDetails rebuilds innerHTML on every
+                // RAF update, so refs captured before the await may point to detached nodes.
+                const container = document.getElementById('aircraftPhotoContainer');
+                const img = document.getElementById('aircraftPhoto');
+                const link = document.getElementById('aircraftPhotoLink');
+                const credit = document.getElementById('aircraftPhotoCredit');
+                if (!container || !img) return;
 
                 if (data.success && data.thumbnail) {
                     img.src = data.thumbnail;
@@ -3591,7 +3600,8 @@ sudo make install</code>
                 }
             } catch (err) {
                 console.debug('Failed to fetch aircraft photo:', err);
-                container.style.display = 'none';
+                const container = document.getElementById('aircraftPhotoContainer');
+                if (container) container.style.display = 'none';
             }
         }
 
