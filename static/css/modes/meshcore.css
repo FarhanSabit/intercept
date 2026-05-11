@@ -1,0 +1,261 @@
+/* Meshcore mode — scoped styles */
+
+#meshcoreMode {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 0;
+}
+
+/* ── Sidebar ── */
+.meshcore-sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.meshcore-sidebar-section {
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.meshcore-sidebar-section h4 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin: 0 0 8px;
+}
+
+/* ── Connection panel ── */
+.meshcore-transport-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.meshcore-transport-tab {
+    flex: 1;
+    padding: 4px 0;
+    font-size: 11px;
+    text-align: center;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s;
+}
+
+.meshcore-transport-tab.active {
+    background: var(--accent-cyan);
+    color: #000;
+    border-color: var(--accent-cyan);
+}
+
+/* ── Status indicator ── */
+.meshcore-status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: var(--text-muted);
+}
+
+.meshcore-status-dot.connected { background: #4caf50; box-shadow: 0 0 5px #4caf50; }
+.meshcore-status-dot.connecting { background: #ff9800; animation: meshcore-pulse 1s infinite; }
+.meshcore-status-dot.error { background: #f44336; }
+
+@keyframes meshcore-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* ── Node / contact list items ── */
+.meshcore-node-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 0;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+}
+
+.meshcore-node-item:last-child { border-bottom: none; }
+
+.meshcore-node-icon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    flex-shrink: 0;
+}
+
+.meshcore-node-icon.repeater {
+    border-radius: 0;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    background: #ff9800;
+}
+
+.meshcore-node-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meshcore-node-meta { font-size: 10px; color: var(--text-muted); }
+
+/* ── Main content area ── */
+.meshcore-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── Tab bar ── */
+.meshcore-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+    flex-shrink: 0;
+}
+
+.meshcore-tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.meshcore-tab.active {
+    color: var(--accent-cyan);
+    border-bottom-color: var(--accent-cyan);
+}
+
+/* ── Message feed ── */
+.meshcore-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.meshcore-message {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+.meshcore-message.pending { opacity: 0.6; border-style: dashed; }
+.meshcore-message.direct { border-left: 3px solid var(--accent-cyan); }
+
+.meshcore-message-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.meshcore-message-sender { color: var(--accent-cyan); font-weight: 600; }
+.meshcore-message-text { color: var(--text-primary); }
+
+/* ── Compose bar ── */
+.meshcore-compose {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-card);
+    flex-shrink: 0;
+}
+
+.meshcore-compose input {
+    flex: 1;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 10px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: var(--font-mono);
+}
+
+.meshcore-compose input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+}
+
+/* ── Repeaters tab table ── */
+.meshcore-repeater-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.meshcore-repeater-table th {
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.meshcore-repeater-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+/* ── Traceroute modal ── */
+.meshcore-traceroute-hops {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    padding: 16px 0;
+}
+
+.meshcore-hop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.meshcore-hop-node {
+    background: var(--bg-input);
+    border: 1px solid var(--accent-cyan);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+}
+
+.meshcore-hop-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* ── Map tab ── */
+#meshcoreMap {
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
+}
