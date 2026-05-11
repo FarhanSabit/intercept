@@ -7,6 +7,7 @@ import pytest
 from flask import Flask
 
 from routes.meshcore import meshcore_bp
+from utils.meshcore import BLEConfig, SerialConfig, TCPConfig
 
 
 @pytest.fixture()
@@ -59,15 +60,25 @@ class TestConnect:
         assert r.status_code == 200
         assert r.get_json()["status"] == "connecting"
         mock_meshcore_client.connect.assert_called_once()
+        call_arg = mock_meshcore_client.connect.call_args[0][0]
+        assert isinstance(call_arg, SerialConfig)
+        assert call_arg.port == "/dev/ttyUSB0"
 
     def test_tcp_connect(self, client, mock_meshcore_client):
         r = client.post("/meshcore/connect", json={"transport": "tcp", "host": "192.168.1.10", "port": 5000})
         assert r.status_code == 200
         mock_meshcore_client.connect.assert_called_once()
+        call_arg = mock_meshcore_client.connect.call_args[0][0]
+        assert isinstance(call_arg, TCPConfig)
+        assert call_arg.host == "192.168.1.10"
 
     def test_ble_connect(self, client, mock_meshcore_client):
         r = client.post("/meshcore/connect", json={"transport": "ble", "address": "AA:BB:CC:DD:EE:FF"})
         assert r.status_code == 200
+        mock_meshcore_client.connect.assert_called_once()
+        call_arg = mock_meshcore_client.connect.call_args[0][0]
+        assert isinstance(call_arg, BLEConfig)
+        assert call_arg.device_address == "AA:BB:CC:DD:EE:FF"
 
     def test_unknown_transport_returns_400(self, client):
         r = client.post("/meshcore/connect", json={"transport": "zigbee"})
@@ -87,6 +98,10 @@ class TestSend:
     def test_missing_text_returns_400(self, client):
         r = client.post("/meshcore/send", json={})
         assert r.status_code == 400
+
+    def test_text_at_limit_returns_200(self, client, mock_meshcore_client):
+        r = client.post("/meshcore/send", json={"text": "x" * 237, "recipient_id": "NODE1"})
+        assert r.status_code == 200
 
     def test_text_too_long_returns_400(self, client):
         r = client.post("/meshcore/send", json={"text": "x" * 238})
