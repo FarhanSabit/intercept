@@ -1,5 +1,6 @@
 """Route tests for Meshcore blueprint."""
 
+import queue as q_module
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -130,3 +131,136 @@ class TestTraceroute:
         r = client.post("/meshcore/traceroute", json={"node_id": "NODE1"})
         assert r.status_code == 200
         mock_meshcore_client.request_traceroute.assert_called_once_with("NODE1")
+
+
+class TestDisconnect:
+    def test_disconnect_returns_200(self, client, mock_meshcore_client):
+        r = client.post("/meshcore/disconnect")
+        assert r.status_code == 200
+        assert r.get_json()["status"] == "disconnected"
+        mock_meshcore_client.disconnect.assert_called_once()
+
+
+class TestBLEScan:
+    def test_returns_device_list(self, client, mock_meshcore_client):
+        mock_meshcore_client.scan_ble.return_value = [{"address": "AA:BB:CC:DD:EE:FF", "name": "MeshNode"}]
+        r = client.get("/meshcore/ble/scan")
+        assert r.status_code == 200
+        d = r.get_json()
+        assert "devices" in d
+        assert len(d["devices"]) == 1
+
+    def test_empty_scan_returns_empty_list(self, client, mock_meshcore_client):
+        r = client.get("/meshcore/ble/scan")
+        assert r.status_code == 200
+        assert r.get_json()["devices"] == []
+
+    def test_unavailable_returns_503(self, client):
+        with patch("routes.meshcore.is_meshcore_available", return_value=False):
+            r = client.get("/meshcore/ble/scan")
+            assert r.status_code == 503
+
+
+class TestStream:
+    def test_keepalive_on_empty_queue(self, client, mock_meshcore_client):
+        mock_q = MagicMock()
+        mock_q.get.side_effect = q_module.Empty
+        mock_meshcore_client.get_queue.return_value = mock_q
+
+        with client.get("/meshcore/stream", buffered=False) as r:
+            assert r.status_code == 200
+            assert r.content_type.startswith("text/event-stream")
+            chunk = next(r.response)
+            assert b": keepalive" in chunk
+
+    def test_stream_yields_event_data(self, client, mock_meshcore_client):
+        event_payload = {"type": "message", "text": "hello"}
+        mock_q = MagicMock()
+        # First call yields an event; subsequent calls raise Empty to stop iteration
+        mock_q.get.side_effect = [event_payload, q_module.Empty]
+        mock_meshcore_client.get_queue.return_value = mock_q
+
+        with client.get("/meshcore/stream", buffered=False) as r:
+            assert r.status_code == 200
+            chunk = next(r.response)
+            assert b"data:" in chunk
+            assert b"message" in chunk
+
+
+class TestMessages:
+    def test_returns_empty_list(self, client, mock_meshcore_client):
+        r = client.get("/meshcore/messages")
+        assert r.status_code == 200
+        d = r.get_json()
+        assert "messages" in d
+        assert d["messages"] == []
+
+    def test_returns_messages(self, client, mock_meshcore_client):
+        mock_meshcore_client.get_messages.return_value = [{"text": "hi", "sender": "NODE1"}]
+        r = client.get("/meshcore/messages")
+        assert r.status_code == 200
+        assert len(r.get_json()["messages"]) == 1
+
+
+class TestNodes:
+    def test_returns_empty_list(self, client, mock_meshcore_client):
+        r = client.get("/meshcore/nodes")
+        assert r.status_code == 200
+        d = r.get_json()
+        assert "nodes" in d
+        assert d["nodes"] == []
+
+    def test_returns_nodes(self, client, mock_meshcore_client):
+        mock_meshcore_client.get_nodes.return_value = [{"node_id": "NODE1", "name": "Base"}]
+        r = client.get("/meshcore/nodes")
+        assert r.status_code == 200
+        assert len(r.get_json()["nodes"]) == 1
+
+
+class TestListContacts:
+    def test_returns_empty_list(self, client, mock_meshcore_client):
+        r = client.get("/meshcore/contacts")
+        assert r.status_code == 200
+        d = r.get_json()
+        assert "contacts" in d
+        assert d["contacts"] == []
+
+    def test_returns_contacts(self, client, mock_meshcore_client):
+        mock_meshcore_client.get_contacts.return_value = [{"node_id": "N1", "name": "Alice"}]
+        r = client.get("/meshcore/contacts")
+        assert r.status_code == 200
+        assert len(r.get_json()["contacts"]) == 1
+
+
+class TestTelemetry:
+    def test_returns_telemetry_for_node(self, client, mock_meshcore_client):
+        r = client.get("/meshcore/telemetry/NODE1")
+        assert r.status_code == 200
+        d = r.get_json()
+        assert d["node_id"] == "NODE1"
+        assert "telemetry" in d
+        assert d["telemetry"] == []
+
+    def test_returns_telemetry_data(self, client, mock_meshcore_client):
+        mock_meshcore_client.get_telemetry.return_value = [{"battery": 85, "snr": -10.5}]
+        r = client.get("/meshcore/telemetry/NODE2")
+        assert r.status_code == 200
+        d = r.get_json()
+        assert d["node_id"] == "NODE2"
+        assert len(d["telemetry"]) == 1
+        mock_meshcore_client.get_telemetry.assert_called_once_with("NODE2")
+
+
+class TestRepeaters:
+    def test_returns_empty_list(self, client, mock_meshcore_client):
+        r = client.get("/meshcore/repeaters")
+        assert r.status_code == 200
+        d = r.get_json()
+        assert "repeaters" in d
+        assert d["repeaters"] == []
+
+    def test_returns_repeaters(self, client, mock_meshcore_client):
+        mock_meshcore_client.get_repeaters.return_value = [{"node_id": "R1", "name": "Tower"}]
+        r = client.get("/meshcore/repeaters")
+        assert r.status_code == 200
+        assert len(r.get_json()["repeaters"]) == 1
