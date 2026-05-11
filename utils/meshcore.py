@@ -263,10 +263,13 @@ class MeshcoreClient:
 
     def get_state(self) -> ConnectionState:
         """Return the current connection state."""
-        return self._state
+        with self._lock:
+            return self._state
 
     def _set_state(self, state: ConnectionState, **extra) -> None:
-        self._state = state
+        with self._lock:
+            self._state = state
+        # Push the status event OUTSIDE the lock (avoids deadlock; _push is queue-based)
         payload: dict = {"state": state.value}
         payload.update(extra)
         self._push({"type": "status", "data": payload})
@@ -291,16 +294,26 @@ class MeshcoreClient:
 
     def connect(self, config: ConnectionConfig) -> None:
         """Start background AsyncWorker with the given connection config."""
-        if self._state == ConnectionState.CONNECTING:
-            return
+        with self._lock:
+            if self._state == ConnectionState.CONNECTING:
+                return
+            self._state = ConnectionState.CONNECTING
+        # Push status event outside the lock
+        self._push({"type": "status", "data": {"state": ConnectionState.CONNECTING.value}})
         if isinstance(config, BLEConfig) and _is_docker():
-            self._set_state(
-                ConnectionState.ERROR,
-                message="BLE unavailable in Docker. Run meshcore-proxy on the host and connect via TCP.",
+            with self._lock:
+                self._state = ConnectionState.ERROR
+            self._push(
+                {
+                    "type": "status",
+                    "data": {
+                        "state": ConnectionState.ERROR.value,
+                        "message": "BLE unavailable in Docker. Run meshcore-proxy on the host and connect via TCP.",
+                    },
+                }
             )
             return
         self._config = config
-        self._set_state(ConnectionState.CONNECTING)
         from utils.meshcore_client import AsyncWorker  # imported lazily (Task 3)
 
         self._worker = AsyncWorker(config, self)

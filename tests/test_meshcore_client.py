@@ -98,3 +98,74 @@ class TestConnectionState:
         assert ConnectionState.CONNECTING.value == "connecting"
         assert ConnectionState.CONNECTED.value == "connected"
         assert ConnectionState.ERROR.value == "error"
+
+
+class TestMeshcoreContact:
+    def test_to_dict_keys(self):
+        from utils.meshcore import MeshcoreContact
+
+        c = MeshcoreContact(
+            node_id="ab" * 32,
+            name="Alice",
+            public_key="ab" * 32,
+            last_msg=None,
+        )
+        d = c.to_dict()
+        assert d["node_id"] == "ab" * 32
+        assert d["name"] == "Alice"
+        assert d["last_msg"] is None
+
+
+class TestMeshcoreClientStateMachine:
+    def test_status_event_pushed_on_connect_state_change(self):
+        from utils.meshcore import ConnectionState, MeshcoreClient
+
+        client = MeshcoreClient()
+        # Drain any queued events from __init__ (none expected, but be safe)
+        while not client.get_queue().empty():
+            client.get_queue().get_nowait()
+        # Call on_connected directly (simulating what AsyncWorker would call)
+        client.on_connected(transport="serial", device="/dev/ttyUSB0")
+        assert client.get_state() == ConnectionState.CONNECTED
+        event = client.get_queue().get_nowait()
+        assert event["type"] == "status"
+        assert event["data"]["state"] == "connected"
+
+    def test_on_message_appends_and_pushes_to_queue(self):
+        from utils.meshcore import MeshcoreClient, MeshcoreMessage
+
+        client = MeshcoreClient()
+        msg = MeshcoreMessage(
+            id="m1",
+            sender_id="A",
+            recipient_id="BROADCAST",
+            text="hi",
+            timestamp=datetime.now(timezone.utc),
+            hop_count=0,
+            snr=None,
+            is_direct=False,
+        )
+        client.on_message(msg)
+        assert len(client.get_messages()) == 1
+        event = client.get_queue().get_nowait()
+        assert event["type"] == "message"
+        assert event["data"]["text"] == "hi"
+
+    def test_on_message_caps_at_500(self):
+        from utils.meshcore import MeshcoreClient, MeshcoreMessage
+
+        client = MeshcoreClient()
+        for i in range(510):
+            client.on_message(
+                MeshcoreMessage(
+                    id=str(i),
+                    sender_id="X",
+                    recipient_id="BROADCAST",
+                    text=f"msg{i}",
+                    timestamp=datetime.now(timezone.utc),
+                    hop_count=0,
+                    snr=None,
+                    is_direct=False,
+                )
+            )
+        assert len(client.get_messages()) == 500
