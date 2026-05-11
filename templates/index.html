@@ -89,6 +89,7 @@
             tscm: "{{ url_for('static', filename='css/modes/tscm.css') }}",
             spystations: "{{ url_for('static', filename='css/modes/spy-stations.css') }}",
             meshtastic: "{{ url_for('static', filename='css/modes/meshtastic.css') }}",
+            meshcore: "{{ url_for('static', filename='css/modes/meshcore.css') }}",
             sstv: "{{ url_for('static', filename='css/modes/sstv.css') }}",
             weathersat: "{{ url_for('static', filename='css/modes/weather-satellite.css') }}",
             sstv_general: "{{ url_for('static', filename='css/modes/sstv-general.css') }}",
@@ -173,6 +174,7 @@
             wifi: "{{ url_for('static', filename='js/modes/wifi.js') }}",
             spystations: "{{ url_for('static', filename='js/modes/spy-stations.js') }}",
             meshtastic: "{{ url_for('static', filename='js/modes/meshtastic.js') }}",
+            meshcore: "{{ url_for('static', filename='js/modes/meshcore.js') }}",
             sstv: "{{ url_for('static', filename='js/modes/sstv.js') }}",
             weathersat: "{{ url_for('static', filename='js/modes/weather-satellite.js') }}",
             sstv_general: "{{ url_for('static', filename='js/modes/sstv-general.js') }}",
@@ -427,6 +429,10 @@
                             <button class="mode-card mode-card-sm" onclick="selectMode('meshtastic')">
                                 <span class="mode-icon icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg></span>
                                 <span class="mode-name">Meshtastic</span>
+                            </button>
+                            <button class="mode-card mode-card-sm" onclick="selectMode('meshcore')">
+                                <div class="mode-card-icon">📡</div>
+                                <div class="mode-card-label">Meshcore</div>
                             </button>
                         </div>
                     </div>
@@ -773,6 +779,7 @@
                 {% include 'partials/modes/spy-stations.html' %}
 
                 {% include 'partials/modes/meshtastic.html' %}
+                {% include 'partials/modes/meshcore.html' %}
 
                 {% include 'partials/modes/websdr.html' %}
 
@@ -2328,6 +2335,10 @@
                     </div>
                 </div>
 
+                <!-- Meshcore Dashboard -->
+                <div id="meshcoreVisuals" class="mesh-visuals-container" style="display: none;">
+                </div>
+
                 <!-- SSTV Decoder Dashboard -->
                 <div id="sstvVisuals" class="sstv-visuals-container" style="display: none;">
                     <!-- Status Strip -->
@@ -3770,6 +3781,7 @@
             bt_locate: { label: 'BT Locate', indicator: 'BT LOCATE', outputTitle: 'BT Locate — SAR Tracker', group: 'wireless' },
             wifi_locate: { label: 'WiFi Locate', indicator: 'WF LOCATE', outputTitle: 'WiFi Locate', group: 'wireless' },
             meshtastic: { label: 'Meshtastic', indicator: 'MESHTASTIC', outputTitle: 'Meshtastic Mesh Monitor', group: 'wireless' },
+            meshcore: { label: 'Meshcore', indicator: 'MESHCORE', outputTitle: 'Meshcore Mesh Monitor', group: 'wireless' },
             tscm: { label: 'TSCM', indicator: 'TSCM', outputTitle: 'TSCM Counter-Surveillance', group: 'intel' },
             drone: { label: 'Drone Intel', indicator: 'DRONE', outputTitle: 'Drone Intelligence', group: 'intel' },
             spystations: { label: 'Spy Stations', indicator: 'SPY STATIONS', outputTitle: 'Spy Stations', group: 'intel' },
@@ -4385,6 +4397,7 @@
                 waterfall: () => typeof Waterfall !== 'undefined' && Waterfall.destroy?.(),
                 gps: () => typeof GPS !== 'undefined' && GPS.destroy?.(),
                 meshtastic: () => typeof Meshtastic !== 'undefined' && Meshtastic.destroy?.(),
+                meshcore: () => typeof MeshCore !== 'undefined' && MeshCore.destroy?.(),
                 bluetooth: () => typeof BluetoothMode !== 'undefined' && BluetoothMode.destroy?.(),
                 wifi: () => typeof WiFiMode !== 'undefined' && WiFiMode.destroy?.(),
                 bt_locate: () => typeof BtLocate !== 'undefined' && BtLocate.destroy?.(),
@@ -4723,6 +4736,7 @@
             document.getElementById('radiosondeMode')?.classList.toggle('active', mode === 'radiosonde');
             document.getElementById('spystationsMode')?.classList.toggle('active', mode === 'spystations');
             document.getElementById('meshtasticMode')?.classList.toggle('active', mode === 'meshtastic');
+            document.getElementById('meshcoreMode')?.classList.toggle('active', mode === 'meshcore');
             document.getElementById('websdrMode')?.classList.toggle('active', mode === 'websdr');
             document.getElementById('subghzMode')?.classList.toggle('active', mode === 'subghz');
             document.getElementById('spaceWeatherMode')?.classList.toggle('active', mode === 'spaceweather');
@@ -4758,6 +4772,7 @@
             const tscmVisuals = document.getElementById('tscmVisuals');
             const spyStationsVisuals = document.getElementById('spyStationsVisuals');
             const meshtasticVisuals = document.getElementById('meshtasticVisuals');
+            const meshcoreVisuals = document.getElementById('meshcoreVisuals');
             const sstvVisuals = document.getElementById('sstvVisuals');
             const weatherSatVisuals = document.getElementById('weatherSatVisuals');
             const sstvGeneralVisuals = document.getElementById('sstvGeneralVisuals');
@@ -4801,6 +4816,7 @@
             if (tscmVisuals) tscmVisuals.style.display = mode === 'tscm' ? 'flex' : 'none';
             if (spyStationsVisuals) spyStationsVisuals.style.display = mode === 'spystations' ? 'flex' : 'none';
             if (meshtasticVisuals) meshtasticVisuals.style.display = mode === 'meshtastic' ? 'flex' : 'none';
+            if (meshcoreVisuals) meshcoreVisuals.style.display = mode === 'meshcore' ? 'flex' : 'none';
             if (sstvVisuals) sstvVisuals.style.display = mode === 'sstv' ? 'flex' : 'none';
             if (weatherSatVisuals) weatherSatVisuals.style.display = mode === 'weathersat' ? 'flex' : 'none';
             if (sstvGeneralVisuals) sstvGeneralVisuals.style.display = mode === 'sstv_general' ? 'flex' : 'none';
@@ -4818,7 +4834,7 @@
 
             // Hide the signal feed output for modes that have their own visuals
             const outputEl = document.getElementById('output');
-            const modesWithVisuals = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'aprs', 'wifi', 'bluetooth', 'tscm', 'spystations', 'meshtastic', 'websdr', 'subghz', 'spaceweather', 'bt_locate', 'wifi_locate', 'waterfall', 'morse', 'meteor', 'system', 'ook', 'radiosonde', 'gps'];
+            const modesWithVisuals = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'aprs', 'wifi', 'bluetooth', 'tscm', 'spystations', 'meshtastic', 'meshcore', 'websdr', 'subghz', 'spaceweather', 'bt_locate', 'wifi_locate', 'waterfall', 'morse', 'meteor', 'system', 'ook', 'radiosonde', 'gps'];
             if (outputEl) outputEl.style.display = modesWithVisuals.includes(mode) ? 'none' : 'block';
 
             // Prevent Leaflet heatmap redraws on hidden BT Locate map containers.
@@ -4833,6 +4849,8 @@
             const mainContent = document.querySelector('.main-content');
             if (mainContent) {
                 if (mode === 'meshtastic') {
+                    mainContent.classList.add('mesh-sidebar-hidden');
+                } else if (mode === 'meshcore') {
                     mainContent.classList.add('mesh-sidebar-hidden');
                 } else {
                     mainContent.classList.remove('mesh-sidebar-hidden');
@@ -4876,7 +4894,7 @@
             const reconBtn = document.getElementById('reconBtn');
             const intelBtn = document.querySelector('[onclick="exportDeviceDB()"]');
             const reconPanel = document.getElementById('reconPanel');
-            const hideRecon = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'gps', 'aprs', 'tscm', 'spystations', 'meshtastic', 'websdr', 'subghz', 'spaceweather', 'waterfall', 'meteor', 'system'].includes(mode);
+            const hideRecon = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'gps', 'aprs', 'tscm', 'spystations', 'meshtastic', 'meshcore', 'websdr', 'subghz', 'spaceweather', 'waterfall', 'meteor', 'system'].includes(mode);
             if (reconPanel) reconPanel.style.display = (!hideRecon && reconEnabled) ? 'block' : 'none';
             if (reconBtn) reconBtn.style.display = hideRecon ? 'none' : 'inline-block';
             if (intelBtn) intelBtn.style.display = hideRecon ? 'none' : 'inline-block';
@@ -4933,7 +4951,7 @@
             if (statusBar) statusBar.style.display = hideStatusBar ? 'none' : 'flex';
 
             // Restore sidebar when leaving Meshtastic mode (user may have collapsed it)
-            if (mode !== 'meshtastic') {
+            if (mode !== 'meshtastic' && mode !== 'meshcore') {
                 const mainContent = document.querySelector('.main-content');
                 if (mainContent) {
                     mainContent.classList.remove('mesh-sidebar-hidden');
@@ -4969,6 +4987,11 @@
                 // Fix map sizing after container becomes visible
                 setTimeout(() => {
                     Meshtastic.invalidateMap();
+                }, 100);
+            } else if (mode === 'meshcore') {
+                MeshCore.init();
+                setTimeout(() => {
+                    MeshCore.invalidateMap();
                 }, 100);
             } else if (mode === 'sstv') {
                 SSTV.init();
