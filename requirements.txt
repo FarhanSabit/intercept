@@ -27,6 +27,7 @@ pyserial>=3.5
 
 # Meshtastic mesh network support (optional - only needed for Meshtastic features)
 meshtastic>=2.0.0
+meshcore>=1.0.0
 
 # Deauthentication attack detection (optional - for WiFi TSCM)
 scapy>=2.4.5

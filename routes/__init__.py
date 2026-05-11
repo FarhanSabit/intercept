@@ -23,6 +23,7 @@ def register_blueprints(app):
     from .gps import gps_bp
     from .ground_station import ground_station_bp
     from .listening_post import receiver_bp
+    from .meshcore import meshcore_bp
     from .meshtastic import meshtastic_bp
     from .meteor_websocket import meteor_bp
     from .morse import morse_bp
@@ -70,6 +71,7 @@ def register_blueprints(app):
     app.register_blueprint(correlation_bp)
     app.register_blueprint(receiver_bp)
     app.register_blueprint(meshtastic_bp)
+    app.register_blueprint(meshcore_bp)
     app.register_blueprint(tscm_bp)
     app.register_blueprint(spy_stations_bp)
     app.register_blueprint(controller_bp)  # Remote agent controller
