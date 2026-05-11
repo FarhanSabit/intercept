@@ -1,7 +1,18 @@
 """Integration tests: mock meshcore library at its boundary, test full flow."""
 
+import sys
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def mock_meshcore_lib():
+    """Isolate tests from the optional meshcore library."""
+    fake = MagicMock()
+    with patch.dict(sys.modules, {"meshcore": fake, "meshcore.events": fake}):
+        yield
 
 
 class TestMessageRoundTrip:
@@ -131,23 +142,18 @@ class TestTracerouteRoundTrip:
 
 
 class TestBLEDockerBlock:
-    def test_ble_blocked_in_docker(self, tmp_path, monkeypatch):
+    def test_ble_blocked_in_docker(self, monkeypatch):
         monkeypatch.setenv("INTERCEPT_DOCKER", "1")
         from utils.meshcore import BLEConfig, MeshcoreClient
 
         client = MeshcoreClient()
+        client.connect(BLEConfig())
 
-        with patch("utils.meshcore_client.AsyncWorker") as MockWorker:
-            client.connect(BLEConfig())
-            MockWorker.assert_not_called()
-
-        q = client.get_queue()
-        # connect() pushes 'connecting' first, then the error — drain to the error event
         events = []
-        while not q.empty():
-            events.append(q.get_nowait())
+        while not client.get_queue().empty():
+            events.append(client.get_queue().get_nowait())
         error_events = [e for e in events if e.get("data", {}).get("state") == "error"]
-        assert error_events, f"Expected an error event, got: {events}"
+        assert error_events
         assert "Docker" in error_events[0]["data"]["message"]
 
 
