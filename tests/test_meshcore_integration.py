@@ -178,3 +178,4 @@ class TestConnectionStateTransitions:
         assert client.get_state() == ConnectionState.ERROR
         event = client.get_queue().get_nowait()
         assert event["data"]["state"] == "error"
+        assert event["data"].get("message") == "timeout"
