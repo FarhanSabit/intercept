@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import enum
 import glob
+import os
 import queue
 import threading
 from dataclasses import dataclass
@@ -231,8 +232,6 @@ def list_serial_ports() -> list[str]:
 
 def _is_docker() -> bool:
     """Return True when running inside a Docker container."""
-    import os
-
     return os.path.exists("/.dockerenv") or os.environ.get("INTERCEPT_DOCKER") == "1"
 
 

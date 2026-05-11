@@ -11,13 +11,10 @@ class TestAvailability:
         assert isinstance(is_meshcore_available(), bool)
 
     def test_false_when_not_installed(self):
-        with patch.dict("sys.modules", {"meshcore": None}):
-            import importlib
+        with patch("utils.meshcore.HAS_MESHCORE", False):
+            from utils.meshcore import is_meshcore_available
 
-            import utils.meshcore as m
-
-            importlib.reload(m)
-            assert m.is_meshcore_available() is False
+            assert is_meshcore_available() is False
 
 
 class TestMeshcoreMessage:
@@ -48,6 +45,12 @@ class TestMeshcoreMessage:
     def test_none_snr_allowed(self):
         d = self._make(snr=None).to_dict()
         assert d["snr"] is None
+
+    def test_to_dict_timestamp_is_iso(self):
+        msg = self._make(timestamp=datetime(2026, 5, 11, 10, 30, 0, tzinfo=timezone.utc))
+        d = msg.to_dict()
+        assert "2026-05-11" in d["timestamp"]
+        assert isinstance(d["timestamp"], str)
 
 
 class TestMeshcoreNode:
@@ -91,7 +94,7 @@ class TestConnectionState:
     def test_state_enum_values(self):
         from utils.meshcore import ConnectionState
 
-        assert ConnectionState.DISCONNECTED
-        assert ConnectionState.CONNECTING
-        assert ConnectionState.CONNECTED
-        assert ConnectionState.ERROR
+        assert ConnectionState.DISCONNECTED.value == "disconnected"
+        assert ConnectionState.CONNECTING.value == "connecting"
+        assert ConnectionState.CONNECTED.value == "connected"
+        assert ConnectionState.ERROR.value == "error"
