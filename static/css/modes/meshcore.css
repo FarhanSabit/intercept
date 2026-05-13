@@ -1,14 +1,19 @@
 /* Meshcore mode — scoped styles */
 
-#meshcoreMode {
-    display: none;
+/* Override the shared mesh-visuals-container column layout */
+#meshcoreVisuals {
     flex-direction: row;
-    height: 100%;
+    padding: 0;
     gap: 0;
 }
 
-#meshcoreMode.active {
-    display: flex !important;
+#meshcoreMode {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    gap: 0;
 }
 
 /* ── Sidebar ── */
