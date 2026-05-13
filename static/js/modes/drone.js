@@ -1,81 +1,23 @@
-(function DroneMode() {
+var DroneMode = (function () {
     'use strict';
 
-    let _sse = null;
-    let _map = null;
-    let _markers = {};
-    let _trails = {};
-    let _running = false;
+    var _sse = null;
+    var _map = null;
+    var _markers = {};
+    var _trails = {};
+    var _initialized = false;
 
     function init() {
+        if (_initialized) {
+            _refreshStatus();
+            return;
+        }
+        _initialized = true;
         document.getElementById('droneStartBtn')?.addEventListener('click', _start);
         document.getElementById('droneStopBtn')?.addEventListener('click', _stop);
-        _refreshDevices();
         _initMap();
         _connectSSE();
         _refreshStatus();
-    }
-
-    function _refreshDevices() {
-        fetch('/drone/devices')
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                const devs = data.devices || {};
-                _populateSelect(
-                    'droneWifiIface',
-                    devs.wifi_interfaces || [],
-                    function (i) { return i.name; },
-                    function (i) { return i.display_name || i.name; },
-                    'No WiFi interfaces found'
-                );
-                _populateSelect(
-                    'droneRtlIndex',
-                    devs.sdr_devices || [],
-                    function (d) { return d.index; },
-                    function (d) { return d.display_name || d.name; },
-                    'No SDR devices found'
-                );
-            })
-            .catch(function () {
-                _setSelectError('droneWifiIface', 'Failed to load interfaces');
-                _setSelectError('droneRtlIndex', 'Failed to load devices');
-            });
-    }
-
-    function _populateSelect(id, items, valFn, labelFn, emptyMsg) {
-        const sel = document.getElementById(id);
-        if (!sel) return;
-        sel.innerHTML = '';
-        if (!items.length) {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = emptyMsg;
-            sel.appendChild(opt);
-            return;
-        }
-        items.forEach(function (item) {
-            const opt = document.createElement('option');
-            opt.value = valFn(item);
-            opt.textContent = labelFn(item);
-            sel.appendChild(opt);
-        });
-    }
-
-    function _setSelectError(id, msg) {
-        const sel = document.getElementById(id);
-        if (!sel) return;
-        sel.innerHTML = '<option value="">' + msg + '</option>';
-    }
-
-    function _initMap() {
-        if (_map) return;
-        const mapEl = document.getElementById('droneMainMap');
-        if (!mapEl || typeof L === 'undefined') return;
-        _map = L.map('droneMainMap', { zoomControl: true }).setView([20, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 18,
-        }).addTo(_map);
     }
 
     function destroy() {
@@ -86,6 +28,22 @@
         }
         _markers = {};
         _trails = {};
+        _initialized = false;
+    }
+
+    function invalidateMap() {
+        if (_map) _map.invalidateSize();
+    }
+
+    function _initMap() {
+        if (_map) return;
+        var mapEl = document.getElementById('droneMainMap');
+        if (!mapEl || typeof L === 'undefined') return;
+        _map = L.map('droneMainMap', { zoomControl: true }).setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 18,
+        }).addTo(_map);
     }
 
     function _connectSSE() {
@@ -93,7 +51,7 @@
         _sse = new EventSource('/drone/stream');
         _sse.addEventListener('message', function (e) {
             try {
-                const msg = JSON.parse(e.data);
+                var msg = JSON.parse(e.data);
                 if (msg.type === 'contact') _handleContact(msg.data);
             } catch (_) {}
         });
@@ -115,11 +73,11 @@
     }
 
     function _upsertCard(contact) {
-        const listEl = document.getElementById('droneContactList');
-        const emptyEl = document.getElementById('droneContactEmpty');
+        var listEl = document.getElementById('droneContactList');
+        var emptyEl = document.getElementById('droneContactEmpty');
         if (!listEl) return;
         if (emptyEl) emptyEl.style.display = 'none';
-        let card = document.getElementById('drone-card-' + contact.id);
+        var card = document.getElementById('drone-card-' + contact.id);
         if (!card) {
             card = document.createElement('div');
             card.id = 'drone-card-' + contact.id;
@@ -128,14 +86,14 @@
             listEl.prepend(card);
         }
         card.className = 'drone-contact-card ' + contact.risk_level + '-risk';
-        const complianceLabel = contact.compliant
+        var complianceLabel = contact.compliant
             ? '<span class="drone-compliance-badge compliant">Remote ID</span>'
             : '<span class="drone-compliance-badge non-compliant">No Remote ID</span>';
-        const vectors = (contact.detection_vectors || []).map(function (v) {
+        var vectors = (contact.detection_vectors || []).map(function (v) {
             return '<span class="drone-vector-pill active">' + v + '</span>';
         }).join('');
-        const alt = contact.altitude_m != null ? contact.altitude_m.toFixed(0) + ' m' : '—';
-        const spd = contact.speed_ms != null ? contact.speed_ms.toFixed(1) + ' m/s' : '—';
+        var alt = contact.altitude_m != null ? contact.altitude_m.toFixed(0) + ' m' : '—';
+        var spd = contact.speed_ms != null ? contact.speed_ms.toFixed(1) + ' m/s' : '—';
         card.innerHTML = [
             '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">',
             '  <span style="font-family:var(--font-mono); font-size:11px; color:var(--accent-cyan);">' + (contact.serial_number || contact.id) + '</span>',
@@ -148,15 +106,15 @@
 
     function _upsertMapMarker(contact) {
         if (!_map) return;
-        const lat = contact.position[0];
-        const lon = contact.position[1];
+        var lat = contact.position[0];
+        var lon = contact.position[1];
         if (_markers[contact.id]) {
             _markers[contact.id].setLatLng([lat, lon]);
         } else {
-            const color = contact.risk_level === 'high' ? 'var(--accent-red)' :
-                          contact.risk_level === 'medium' ? 'var(--accent-yellow)' :
-                          'var(--accent-cyan)';
-            const icon = L.divIcon({
+            var color = contact.risk_level === 'high' ? 'var(--accent-red)' :
+                        contact.risk_level === 'medium' ? 'var(--accent-yellow)' :
+                        'var(--accent-cyan)';
+            var icon = L.divIcon({
                 className: 'drone-map-icon' + (contact.risk_level === 'high' ? ' drone-marker-high-risk' : ''),
                 html: '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';border:2px solid #fff;"></div>',
                 iconSize: [10, 10],
@@ -166,7 +124,7 @@
                 .addTo(_map)
                 .bindPopup('<b>' + (contact.serial_number || contact.id) + '</b><br>Risk: ' + contact.risk_level);
         }
-        const trailPoints = (contact.position_history || []).map(function (p) {
+        var trailPoints = (contact.position_history || []).map(function (p) {
             return [p.lat, p.lon];
         });
         if (_trails[contact.id]) {
@@ -191,9 +149,9 @@
         fetch('/drone/contacts')
             .then(function (r) { return r.json(); })
             .then(function (contacts) {
-                const nonCompliant = contacts.filter(function (c) { return !c.compliant; }).length;
-                const highRisk = contacts.filter(function (c) { return c.risk_level === 'high'; }).length;
-                const set = function (id, val) { const el = document.getElementById(id); if (el) el.textContent = val; };
+                var nonCompliant = contacts.filter(function (c) { return !c.compliant; }).length;
+                var highRisk = contacts.filter(function (c) { return c.risk_level === 'high'; }).length;
+                var set = function (id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
                 set('droneContactCount', contacts.length);
                 set('droneNonCompliantCount', nonCompliant);
                 set('droneVsContacts', contacts.length);
@@ -207,7 +165,6 @@
         fetch('/drone/status')
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                _running = data.running;
                 _setRunningUI(data.running);
                 _updateVectorPills(data.vectors || []);
             })
@@ -215,11 +172,11 @@
     }
 
     function _start() {
-        const ifaceVal = document.getElementById('droneWifiIface')?.value || '';
-        const iface = ifaceVal || null;
-        const rtlVal = document.getElementById('droneRtlIndex')?.value;
-        const rtlIndex = rtlVal !== '' && rtlVal != null ? parseInt(rtlVal, 10) : 0;
-        const useHackrf = document.getElementById('droneUseHackrf')?.checked ?? true;
+        var ifaceVal = document.getElementById('droneWifiIface')?.value || '';
+        var iface = ifaceVal || null;
+        var rtlVal = document.getElementById('droneRtlIndex')?.value;
+        var rtlIndex = rtlVal !== '' && rtlVal != null ? parseInt(rtlVal, 10) : 0;
+        var useHackrf = document.getElementById('droneUseHackrf')?.checked ?? true;
         fetch('/drone/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -237,32 +194,30 @@
     }
 
     function _setRunningUI(running) {
-        const startBtn = document.getElementById('droneStartBtn');
-        const stopBtn = document.getElementById('droneStopBtn');
-        const statusEl = document.getElementById('droneStatusText');
+        var startBtn = document.getElementById('droneStartBtn');
+        var stopBtn = document.getElementById('droneStopBtn');
+        var statusEl = document.getElementById('droneStatusText');
         if (startBtn) startBtn.disabled = running;
         if (stopBtn) stopBtn.disabled = !running;
         if (statusEl) {
             statusEl.textContent = running ? 'Active' : 'Standby';
             statusEl.style.color = running ? 'var(--accent-green)' : 'var(--accent-yellow)';
         }
+        // Sync global state for switchMode stop phase
+        if (typeof isDroneRunning !== 'undefined') isDroneRunning = running;
     }
 
     function _updateVectorPills(activeVectors) {
-        const pillMap = {
+        var pillMap = {
             'REMOTE_ID': 'dronePillRemoteId',
             'RTL433': 'dronePill433',
             'HACKRF': 'dronePillHackrf',
         };
-        Object.entries(pillMap).forEach(function ([key, id]) {
-            const el = document.getElementById(id);
+        Object.keys(pillMap).forEach(function (key) {
+            var el = document.getElementById(pillMap[key]);
             if (el) el.classList.toggle('active', activeVectors.some(function (v) { return v.includes(key); }));
         });
     }
 
-    function invalidateMap() {
-        if (_map) _map.invalidateSize();
-    }
-
-    window.DroneMode = { init: init, destroy: destroy, invalidateMap: invalidateMap };
+    return { init: init, destroy: destroy, invalidateMap: invalidateMap };
 })();

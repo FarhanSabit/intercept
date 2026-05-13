@@ -4694,6 +4694,9 @@
                 if (isTscmRunning) {
                     stopTasks.push(awaitStopAction('tscm', () => stopTscmSweep(), LOCAL_STOP_TIMEOUT_MS));
                 }
+                if (isDroneRunning) {
+                    stopTasks.push(awaitStopAction('drone', () => fetch('/drone/stop', { method: 'POST' }), LOCAL_STOP_TIMEOUT_MS));
+                }
 
                 if (stopTasks.length) {
                     await Promise.allSettled(stopTasks);
@@ -4917,6 +4920,11 @@
             if (mode === 'tscm') {
                 loadTscmBaselines();
                 refreshTscmDevices();
+            }
+
+            // Initialize Drone mode when selected
+            if (mode === 'drone') {
+                refreshDroneDevices();
             }
 
             // Module destroy is now handled by moduleDestroyMap above.
@@ -12055,6 +12063,64 @@
         });
 
         // Scanner and receiver logic are handled by Waterfall mode.
+
+        // ============================================
+        // Drone Intelligence Functions
+        // ============================================
+        var isDroneRunning = false;
+
+        async function refreshDroneDevices() {
+            try {
+                const resp = await fetch('/drone/devices');
+                const data = await resp.json();
+                const devs = data.devices || {};
+
+                const wifiSel = document.getElementById('droneWifiIface');
+                if (wifiSel) {
+                    wifiSel.innerHTML = '';
+                    if (devs.wifi_interfaces && devs.wifi_interfaces.length > 0) {
+                        devs.wifi_interfaces.forEach(iface => {
+                            const opt = document.createElement('option');
+                            opt.value = iface.name;
+                            opt.textContent = iface.display_name || iface.name;
+                            wifiSel.appendChild(opt);
+                        });
+                    } else {
+                        wifiSel.innerHTML = '<option value="">No WiFi interfaces found</option>';
+                    }
+                }
+
+                const sdrSel = document.getElementById('droneRtlIndex');
+                if (sdrSel) {
+                    sdrSel.innerHTML = '';
+                    if (devs.sdr_devices && devs.sdr_devices.length > 0) {
+                        devs.sdr_devices.forEach(dev => {
+                            const opt = document.createElement('option');
+                            opt.value = dev.index !== undefined ? dev.index : 0;
+                            opt.textContent = dev.display_name || dev.name || 'SDR Device';
+                            sdrSel.appendChild(opt);
+                        });
+                    } else {
+                        sdrSel.innerHTML = '<option value="">No SDR devices found</option>';
+                    }
+                }
+
+                const warnEl = document.getElementById('droneDeviceWarnings');
+                if (warnEl) {
+                    if (!data.running_as_root) {
+                        warnEl.textContent = 'Not running as root — WiFi monitor mode may be unavailable.';
+                        warnEl.style.display = 'block';
+                    } else {
+                        warnEl.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                const wifiSel = document.getElementById('droneWifiIface');
+                if (wifiSel) wifiSel.innerHTML = '<option value="">Failed to load interfaces</option>';
+                const sdrSel = document.getElementById('droneRtlIndex');
+                if (sdrSel) sdrSel.innerHTML = '<option value="">Failed to load devices</option>';
+            }
+        }
 
         // ============================================
         // TSCM (Counter-Surveillance) Functions

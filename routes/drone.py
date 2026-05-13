@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import platform
 import queue
 import subprocess
@@ -80,7 +81,12 @@ def devices():
                         if "Device:" in lines[j]:
                             dev = lines[j].split("Device:")[1].strip()
                             result["wifi_interfaces"].append(
-                                {"name": dev, "display_name": f"{port} ({dev})", "type": "internal"}
+                                {
+                                    "name": dev,
+                                    "display_name": f"{port} ({dev})",
+                                    "type": "internal",
+                                    "monitor_capable": False,
+                                }
                             )
                             break
         except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.SubprocessError):
@@ -100,6 +106,7 @@ def devices():
                             "name": current,
                             "display_name": f"{current} ({iface_type})",
                             "type": iface_type,
+                            "monitor_capable": True,
                         }
                     )
                     current = None
@@ -110,7 +117,12 @@ def devices():
                     if "IEEE 802.11" in line:
                         iface = line.split()[0]
                         result["wifi_interfaces"].append(
-                            {"name": iface, "display_name": f"{iface} (managed)", "type": "managed"}
+                            {
+                                "name": iface,
+                                "display_name": f"{iface} (managed)",
+                                "type": "managed",
+                                "monitor_capable": True,
+                            }
                         )
             except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.SubprocessError):
                 pass
@@ -130,7 +142,24 @@ def devices():
     except Exception:
         pass
 
-    return jsonify({"status": "ok", "devices": result})
+    running_as_root = os.geteuid() == 0
+    warnings = []
+    if not running_as_root:
+        warnings.append(
+            {
+                "type": "privileges",
+                "message": "Not running as root — WiFi monitor mode may be unavailable.",
+            }
+        )
+
+    return jsonify(
+        {
+            "status": "ok",
+            "devices": result,
+            "running_as_root": running_as_root,
+            "warnings": warnings,
+        }
+    )
 
 
 @drone_bp.route("/status")

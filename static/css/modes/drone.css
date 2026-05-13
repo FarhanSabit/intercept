@@ -8,6 +8,8 @@
     height: 100%;
     overflow: hidden;
     background: var(--bg-primary);
+    padding: 0;
+    box-sizing: border-box;
 }
 
 .drone-visuals-header {
