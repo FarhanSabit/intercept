@@ -96,7 +96,11 @@ const MeshCore = (function () {
     }
 
     function _pollUntilConnected(attempts) {
-        if (_connected || attempts > 15) return;
+        if (_connected) return;
+        if (attempts > 15) {
+            _updateStatusUI('error', 'Connection timed out');
+            return;
+        }
         setTimeout(async () => {
             await _checkStatus();
             if (!_connected) _pollUntilConnected(attempts + 1);
