@@ -57,7 +57,7 @@ const MeshCore = (function () {
 
         _connected = state === 'connected';
         if (connectBtn) connectBtn.disabled = state === 'connecting' || _connected;
-        if (disconnectBtn) disconnectBtn.disabled = !_connected;
+        if (disconnectBtn) disconnectBtn.disabled = state !== 'connecting' && !_connected;
 
         if (_connected && !_eventSource) _startSSE();
         if (!_connected && _eventSource) { _eventSource.close(); _eventSource = null; }
@@ -133,19 +133,33 @@ const MeshCore = (function () {
     }
 
     async function scanBle() {
+        const btn = document.querySelector('[onclick="MeshCore.scanBle()"]');
+        const sel = document.getElementById('meshcoreBleSelect');
+        if (btn) { btn.textContent = 'Scanning…'; btn.disabled = true; }
+        if (sel) sel.innerHTML = '<option value="">Scanning…</option>';
         try {
             const r = await fetch('/meshcore/ble/scan');
             const d = await r.json();
-            const sel = document.getElementById('meshcoreBleSelect');
             if (!sel) return;
-            sel.innerHTML = '<option value="">Select device</option>';
-            (d.devices || []).forEach(dev => {
+            const devices = d.devices || [];
+            if (!devices.length) {
+                sel.innerHTML = '<option value="">No devices found</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">Select device…</option>';
+            devices.forEach(dev => {
                 const o = document.createElement('option');
                 o.value = dev.address;
-                o.textContent = `${dev.name || 'Unknown'} (${dev.address}) RSSI ${dev.rssi}`;
+                o.textContent = `${dev.name || 'Unknown'} (${dev.address})${dev.rssi ? ' · ' + dev.rssi + ' dBm' : ''}`;
                 sel.appendChild(o);
             });
-        } catch (e) { console.error('BLE scan failed:', e); }
+            if (devices.length === 1) sel.value = devices[0].address;
+        } catch (e) {
+            if (sel) sel.innerHTML = '<option value="">Scan failed — retry</option>';
+            console.error('BLE scan failed:', e);
+        } finally {
+            if (btn) { btn.textContent = 'Scan'; btn.disabled = false; }
+        }
     }
 
     // ── SSE Stream ─────────────────────────────────────────────────────────
