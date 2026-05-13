@@ -1,134 +1,136 @@
-{# Meshcore Mode #}
-<div id="meshcoreMode" style="display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
+{# Meshcore Mode
+   meshcore-strip and meshcore-body are direct children of #meshcoreVisuals,
+   matching the Meshtastic pattern. #meshcoreMode is an empty element kept
+   only so the switchMode JS active-class toggle has something to reference. #}
+<div id="meshcoreMode" style="display:none;"></div>
 
-  {# ── Connection Strip ── #}
-  <div class="meshcore-strip">
-    <div class="meshcore-strip-group">
-      <span class="meshcore-status-dot" id="meshcoreStatusDot"></span>
-      <span id="meshcoreStatusText" class="meshcore-strip-status-text">Disconnected</span>
+{# ── Connection Strip ── #}
+<div class="meshcore-strip">
+  <div class="meshcore-strip-group">
+    <span class="meshcore-status-dot" id="meshcoreStatusDot"></span>
+    <span id="meshcoreStatusText" class="meshcore-strip-status-text">Disconnected</span>
+  </div>
+  <div class="meshcore-strip-divider"></div>
+  <div class="meshcore-strip-group">
+    <div class="meshcore-transport-tabs" id="meshcoreTransportTabs">
+      <div class="meshcore-transport-tab active" data-transport="serial" onclick="MeshCore.selectTransport('serial')">Serial</div>
+      <div class="meshcore-transport-tab" data-transport="tcp" onclick="MeshCore.selectTransport('tcp')">TCP</div>
+      <div class="meshcore-transport-tab" data-transport="ble" onclick="MeshCore.selectTransport('ble')">BLE</div>
     </div>
-    <div class="meshcore-strip-divider"></div>
-    <div class="meshcore-strip-group">
-      <div class="meshcore-transport-tabs" id="meshcoreTransportTabs">
-        <div class="meshcore-transport-tab active" data-transport="serial" onclick="MeshCore.selectTransport('serial')">Serial</div>
-        <div class="meshcore-transport-tab" data-transport="tcp" onclick="MeshCore.selectTransport('tcp')">TCP</div>
-        <div class="meshcore-transport-tab" data-transport="ble" onclick="MeshCore.selectTransport('ble')">BLE</div>
+  </div>
+  <div id="meshcoreSerialConfig" class="meshcore-strip-group">
+    <select id="meshcorePortSelect" class="meshcore-strip-select">
+      <option value="">Auto-detect</option>
+    </select>
+  </div>
+  <div id="meshcoreTcpConfig" class="meshcore-strip-group" style="display:none;">
+    <input id="meshcoreTcpHost" type="text" placeholder="Host / IP" value="localhost" class="meshcore-strip-input" style="width:120px;">
+    <input id="meshcoreTcpPort" type="number" placeholder="Port" value="5000" class="meshcore-strip-input" style="width:70px;">
+  </div>
+  <div id="meshcoreBleConfig" class="meshcore-strip-group" style="display:none;">
+    <select id="meshcoreBleSelect" class="meshcore-strip-select">
+      <option value="">Scan for devices...</option>
+    </select>
+    <button class="meshcore-strip-btn" onclick="MeshCore.scanBle()">Scan</button>
+  </div>
+  <div class="meshcore-strip-group">
+    <button class="meshcore-strip-btn connect" id="meshcoreConnectBtn" onclick="MeshCore.connect()">Connect</button>
+    <button class="meshcore-strip-btn disconnect" id="meshcoreDisconnectBtn" onclick="MeshCore.disconnect()" disabled>Disconnect</button>
+  </div>
+  <div class="meshcore-strip-divider"></div>
+  <div class="meshcore-strip-group">
+    <div class="meshcore-strip-stat">
+      <span class="meshcore-strip-value" id="meshcoreNodeCount">0</span>
+      <span class="meshcore-strip-label">NODES</span>
+    </div>
+    <div class="meshcore-strip-stat">
+      <span class="meshcore-strip-value" id="meshcoreMsgCount">0</span>
+      <span class="meshcore-strip-label">MSGS</span>
+    </div>
+  </div>
+  <div class="meshcore-strip-divider"></div>
+  <div class="meshcore-strip-group">
+    <button class="meshcore-strip-btn" onclick="MeshCore.showAddContact()">+ Contact</button>
+  </div>
+</div>
+
+{# ── Main body ── #}
+<div class="meshcore-body">
+
+  {# Left panel: contacts + nodes #}
+  <div class="meshcore-panel" id="meshcoreSidePanel">
+    <div class="meshcore-panel-section">
+      <div class="meshcore-panel-title">Contacts</div>
+      <div id="meshcoreContactList">
+        <div class="meshcore-empty">No contacts</div>
       </div>
     </div>
-    <div id="meshcoreSerialConfig" class="meshcore-strip-group">
-      <select id="meshcorePortSelect" class="meshcore-strip-select">
-        <option value="">Auto-detect</option>
-      </select>
-    </div>
-    <div id="meshcoreTcpConfig" class="meshcore-strip-group" style="display:none;">
-      <input id="meshcoreTcpHost" type="text" placeholder="Host / IP" value="localhost" class="meshcore-strip-input" style="width:120px;">
-      <input id="meshcoreTcpPort" type="number" placeholder="Port" value="5000" class="meshcore-strip-input" style="width:70px;">
-    </div>
-    <div id="meshcoreBleConfig" class="meshcore-strip-group" style="display:none;">
-      <select id="meshcoreBleSelect" class="meshcore-strip-select">
-        <option value="">Scan for devices...</option>
-      </select>
-      <button class="meshcore-strip-btn" onclick="MeshCore.scanBle()">Scan</button>
-    </div>
-    <div class="meshcore-strip-group">
-      <button class="meshcore-strip-btn connect" id="meshcoreConnectBtn" onclick="MeshCore.connect()">Connect</button>
-      <button class="meshcore-strip-btn disconnect" id="meshcoreDisconnectBtn" onclick="MeshCore.disconnect()" disabled>Disconnect</button>
-    </div>
-    <div class="meshcore-strip-divider"></div>
-    <div class="meshcore-strip-group">
-      <div class="meshcore-strip-stat">
-        <span class="meshcore-strip-value" id="meshcoreNodeCount">0</span>
-        <span class="meshcore-strip-label">NODES</span>
+    <div class="meshcore-panel-section meshcore-panel-section--grow">
+      <div class="meshcore-panel-title">Nodes</div>
+      <div id="meshcoreNodeList">
+        <div class="meshcore-empty">No nodes seen</div>
       </div>
-      <div class="meshcore-strip-stat">
-        <span class="meshcore-strip-value" id="meshcoreMsgCount">0</span>
-        <span class="meshcore-strip-label">MSGS</span>
-      </div>
-    </div>
-    <div class="meshcore-strip-divider"></div>
-    <div class="meshcore-strip-group">
-      <button class="meshcore-strip-btn" onclick="MeshCore.showAddContact()">+ Contact</button>
     </div>
   </div>
 
-  {# ── Main body ── #}
-  <div class="meshcore-body">
+  {# Right: tabs + content #}
+  <div class="meshcore-content">
+    <div class="meshcore-tabs">
+      <div class="meshcore-tab active" data-tab="messages" onclick="MeshCore.switchTab('messages')">Messages</div>
+      <div class="meshcore-tab" data-tab="map" onclick="MeshCore.switchTab('map')">Map</div>
+      <div class="meshcore-tab" data-tab="repeaters" onclick="MeshCore.switchTab('repeaters')">Repeaters</div>
+      <div class="meshcore-tab" data-tab="telemetry" onclick="MeshCore.switchTab('telemetry')">Telemetry</div>
+    </div>
 
-    {# Left panel: contacts + nodes #}
-    <div class="meshcore-panel" id="meshcoreSidePanel">
-      <div class="meshcore-panel-section">
-        <div class="meshcore-panel-title">Contacts</div>
-        <div id="meshcoreContactList">
-          <div class="meshcore-empty">No contacts</div>
+    {# Messages tab #}
+    <div class="meshcore-tab-panel active" id="meshcoreTabMessages">
+      <div class="meshcore-messages" id="meshcoreMessageFeed">
+        <div class="meshcore-empty" style="padding:24px;text-align:center;">
+          Connect to a Meshcore device to see messages
         </div>
       </div>
-      <div class="meshcore-panel-section meshcore-panel-section--grow">
-        <div class="meshcore-panel-title">Nodes</div>
-        <div id="meshcoreNodeList">
-          <div class="meshcore-empty">No nodes seen</div>
-        </div>
+      <div class="meshcore-compose">
+        <select id="meshcoreRecipientSelect" class="meshcore-compose-select">
+          <option value="BROADCAST">Broadcast</option>
+        </select>
+        <input id="meshcoreComposeInput" type="text" placeholder="Type a message (max 237 chars)..." maxlength="237"
+               class="meshcore-compose-input" onkeydown="if(event.key==='Enter')MeshCore.sendMessage()">
+        <button class="meshcore-compose-btn" onclick="MeshCore.sendMessage()">Send</button>
       </div>
     </div>
 
-    {# Right: tabs + content #}
-    <div class="meshcore-content">
-      <div class="meshcore-tabs">
-        <div class="meshcore-tab active" data-tab="messages" onclick="MeshCore.switchTab('messages')">Messages</div>
-        <div class="meshcore-tab" data-tab="map" onclick="MeshCore.switchTab('map')">Map</div>
-        <div class="meshcore-tab" data-tab="repeaters" onclick="MeshCore.switchTab('repeaters')">Repeaters</div>
-        <div class="meshcore-tab" data-tab="telemetry" onclick="MeshCore.switchTab('telemetry')">Telemetry</div>
-      </div>
+    {# Map tab #}
+    <div class="meshcore-tab-panel" id="meshcoreTabMap">
+      <div id="meshcoreMap"></div>
+    </div>
 
-      {# Messages tab #}
-      <div class="meshcore-tab-panel active" id="meshcoreTabMessages">
-        <div class="meshcore-messages" id="meshcoreMessageFeed">
-          <div class="meshcore-empty" style="padding:24px;text-align:center;">
-            Connect to a Meshcore device to see messages
-          </div>
-        </div>
-        <div class="meshcore-compose">
-          <select id="meshcoreRecipientSelect" class="meshcore-compose-select">
-            <option value="BROADCAST">Broadcast</option>
-          </select>
-          <input id="meshcoreComposeInput" type="text" placeholder="Type a message (max 237 chars)..." maxlength="237"
-                 class="meshcore-compose-input" onkeydown="if(event.key==='Enter')MeshCore.sendMessage()">
-          <button class="meshcore-compose-btn" onclick="MeshCore.sendMessage()">Send</button>
-        </div>
-      </div>
+    {# Repeaters tab #}
+    <div class="meshcore-tab-panel" id="meshcoreTabRepeaters" style="overflow-y:auto;padding:12px;">
+      <table class="meshcore-table">
+        <thead>
+          <tr>
+            <th>Name</th><th>Node ID</th><th>Hops</th><th>SNR</th><th>Battery</th><th>Last Seen</th>
+          </tr>
+        </thead>
+        <tbody id="meshcoreRepeaterTableBody">
+          <tr><td colspan="6" class="meshcore-empty" style="text-align:center;padding:16px;">No repeaters detected</td></tr>
+        </tbody>
+      </table>
+    </div>
 
-      {# Map tab #}
-      <div class="meshcore-tab-panel" id="meshcoreTabMap">
-        <div id="meshcoreMap"></div>
+    {# Telemetry tab #}
+    <div class="meshcore-tab-panel" id="meshcoreTabTelemetry" style="padding:12px;overflow-y:auto;">
+      <div style="margin-bottom:8px;">
+        <label class="meshcore-label">Node: </label>
+        <select id="meshcoreTelemetryNodeSelect" onchange="MeshCore.loadTelemetry(this.value)" class="meshcore-strip-select">
+          <option value="">Select a node</option>
+        </select>
       </div>
+      <canvas id="meshcoreTelemetryChart" style="max-height:300px;"></canvas>
+    </div>
 
-      {# Repeaters tab #}
-      <div class="meshcore-tab-panel" id="meshcoreTabRepeaters" style="overflow-y:auto;padding:12px;">
-        <table class="meshcore-table">
-          <thead>
-            <tr>
-              <th>Name</th><th>Node ID</th><th>Hops</th><th>SNR</th><th>Battery</th><th>Last Seen</th>
-            </tr>
-          </thead>
-          <tbody id="meshcoreRepeaterTableBody">
-            <tr><td colspan="6" class="meshcore-empty" style="text-align:center;padding:16px;">No repeaters detected</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      {# Telemetry tab #}
-      <div class="meshcore-tab-panel" id="meshcoreTabTelemetry" style="padding:12px;overflow-y:auto;">
-        <div style="margin-bottom:8px;">
-          <label class="meshcore-label">Node: </label>
-          <select id="meshcoreTelemetryNodeSelect" onchange="MeshCore.loadTelemetry(this.value)" class="meshcore-strip-select">
-            <option value="">Select a node</option>
-          </select>
-        </div>
-        <canvas id="meshcoreTelemetryChart" style="max-height:300px;"></canvas>
-      </div>
-
-    </div>{# /meshcore-content #}
-  </div>{# /meshcore-body #}
-</div>{# /meshcoreMode #}
+  </div>{# /meshcore-content #}
+</div>{# /meshcore-body #}
 
 {# ── Add Contact Modal ── #}
 <div id="meshcoreAddContactModal" class="signal-details-modal" style="display:none;">
