@@ -97,7 +97,8 @@ const MeshCore = (function () {
 
     function _pollUntilConnected(attempts) {
         if (_connected) return;
-        if (attempts > 15) {
+        if (attempts > 45) {
+            // Backend retry window (5+15+45s) has elapsed — give up
             _updateStatusUI('error', 'Connection timed out');
             return;
         }

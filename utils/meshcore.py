@@ -250,6 +250,7 @@ class MeshcoreClient:
 
     def __init__(self) -> None:
         self._state = ConnectionState.DISCONNECTED
+        self._status_message: str | None = None
         self._config: ConnectionConfig | None = None
         self._event_queue: queue.Queue = queue.Queue(maxsize=500)
         self._nodes: dict[str, MeshcoreNode] = {}
@@ -261,14 +262,15 @@ class MeshcoreClient:
 
     # -- State --
 
-    def get_state(self) -> ConnectionState:
-        """Return the current connection state."""
+    def get_state(self) -> tuple[ConnectionState, str | None]:
+        """Return the current connection state and last status message."""
         with self._lock:
-            return self._state
+            return self._state, self._status_message
 
     def _set_state(self, state: ConnectionState, **extra) -> None:
         with self._lock:
             self._state = state
+            self._status_message = extra.get("message")
         # Push the status event OUTSIDE the lock (avoids deadlock; _push is queue-based)
         payload: dict = {"state": state.value}
         payload.update(extra)

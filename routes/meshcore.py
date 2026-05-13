@@ -48,7 +48,11 @@ def status():
             }
         )
     c = _client()
-    return jsonify({"available": True, "state": c.get_state().value})
+    state, message = c.get_state()
+    payload = {"available": True, "state": state.value}
+    if message:
+        payload["message"] = message
+    return jsonify(payload)
 
 
 @meshcore_bp.route("/connect", methods=["POST"])
