@@ -1,5 +1,25 @@
 /* Meshcore mode — scoped styles */
 
+/* ── Sidebar hiding (same rules as meshtastic.css — needed here since
+      meshtastic.css is only lazily loaded when that mode is visited) ── */
+.main-content.mesh-sidebar-hidden {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.main-content.mesh-sidebar-hidden > .sidebar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+
+.main-content.mesh-sidebar-hidden > .output-panel {
+    flex: 1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
 /* ── Container overrides ── */
 #meshcoreVisuals {
     flex-direction: column;
