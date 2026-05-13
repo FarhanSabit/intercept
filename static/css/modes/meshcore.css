@@ -1,10 +1,14 @@
 /* Meshcore mode — scoped styles */
 
 #meshcoreMode {
-    display: flex;
-    flex-direction: column;
+    display: none;
+    flex-direction: row;
     height: 100%;
     gap: 0;
+}
+
+#meshcoreMode.active {
+    display: flex !important;
 }
 
 /* ── Sidebar ── */
