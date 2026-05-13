@@ -93,7 +93,7 @@ def ports():
 def ble_scan():
     if not is_meshcore_available():
         return api_error("meshcore not installed", 503)
-    devices = _client().scan_ble()
+    devices = _client().scan_ble_sync()
     return jsonify({"devices": devices})
 
 
