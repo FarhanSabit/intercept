@@ -17,9 +17,9 @@
 
     function _initMap() {
         if (_map) return;
-        const mapEl = document.getElementById('droneMap');
+        const mapEl = document.getElementById('droneMainMap');
         if (!mapEl || typeof L === 'undefined') return;
-        _map = L.map('droneMap', { zoomControl: true }).setView([20, 0], 2);
+        _map = L.map('droneMainMap', { zoomControl: true }).setView([20, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap',
             maxZoom: 18,
@@ -64,7 +64,9 @@
 
     function _upsertCard(contact) {
         const listEl = document.getElementById('droneContactList');
+        const emptyEl = document.getElementById('droneContactEmpty');
         if (!listEl) return;
+        if (emptyEl) emptyEl.style.display = 'none';
         let card = document.getElementById('drone-card-' + contact.id);
         if (!card) {
             card = document.createElement('div');
@@ -80,8 +82,8 @@
         const vectors = (contact.detection_vectors || []).map(function (v) {
             return '<span class="drone-vector-pill active">' + v + '</span>';
         }).join('');
-        const alt = contact.altitude_m != null ? contact.altitude_m.toFixed(0) + 'm' : '—';
-        const spd = contact.speed_ms != null ? contact.speed_ms.toFixed(1) + 'm/s' : '—';
+        const alt = contact.altitude_m != null ? contact.altitude_m.toFixed(0) + ' m' : '—';
+        const spd = contact.speed_ms != null ? contact.speed_ms.toFixed(1) + ' m/s' : '—';
         card.innerHTML = [
             '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">',
             '  <span style="font-family:var(--font-mono); font-size:11px; color:var(--accent-cyan);">' + (contact.serial_number || contact.id) + '</span>',
@@ -138,10 +140,13 @@
             .then(function (r) { return r.json(); })
             .then(function (contacts) {
                 const nonCompliant = contacts.filter(function (c) { return !c.compliant; }).length;
-                const countEl = document.getElementById('droneContactCount');
-                const ncEl = document.getElementById('droneNonCompliantCount');
-                if (countEl) countEl.textContent = contacts.length;
-                if (ncEl) ncEl.textContent = nonCompliant;
+                const highRisk = contacts.filter(function (c) { return c.risk_level === 'high'; }).length;
+                const set = function (id, val) { const el = document.getElementById(id); if (el) el.textContent = val; };
+                set('droneContactCount', contacts.length);
+                set('droneNonCompliantCount', nonCompliant);
+                set('droneVsContacts', contacts.length);
+                set('droneVsNonCompliant', nonCompliant);
+                set('droneVsHighRisk', highRisk);
             })
             .catch(function () {});
     }
@@ -201,5 +206,9 @@
         });
     }
 
-    window.DroneMode = { init: init, destroy: destroy };
+    function invalidateMap() {
+        if (_map) _map.invalidateSize();
+    }
+
+    window.DroneMode = { init: init, destroy: destroy, invalidateMap: invalidateMap };
 })();

@@ -17,20 +17,25 @@
     </div>
 
     <div class="section">
-        <h3>WiFi Interface <span style="font-weight:400; font-size:11px; color:var(--text-dim)">(monitor mode)</span></h3>
-        <input type="text" id="droneWifiIface" placeholder="e.g. wlan0mon" style="width:100%;">
+        <h3>WiFi Interface</h3>
+        <div class="form-group">
+            <label for="droneWifiIface">Interface (monitor mode)</label>
+            <input type="text" id="droneWifiIface" placeholder="e.g. wlan0mon">
+        </div>
     </div>
 
     <div class="section">
-        <h3>RTL-SDR Device <span style="font-weight:400; font-size:11px; color:var(--text-dim)">(433 MHz)</span></h3>
-        <input type="number" id="droneRtlIndex" value="0" min="0" max="7" style="width:100%;" placeholder="Device index">
-    </div>
-
-    <div class="section">
-        <label class="inline-checkbox">
-            <input type="checkbox" id="droneUseHackrf" checked>
-            Use HackRF <span style="font-size:10px; color:var(--text-dim);">(2.4 / 5.8 GHz)</span>
-        </label>
+        <h3>SDR Settings</h3>
+        <div class="form-group">
+            <label for="droneRtlIndex">RTL-SDR Device Index (433 MHz)</label>
+            <input type="number" id="droneRtlIndex" value="0" min="0" max="7" placeholder="Device index">
+        </div>
+        <div class="form-group">
+            <label class="inline-checkbox">
+                <input type="checkbox" id="droneUseHackrf" checked>
+                Use HackRF (2.4 / 5.8 GHz)
+            </label>
+        </div>
     </div>
 
     <div class="section">
@@ -51,11 +56,4 @@
             Non-compliant: <span id="droneNonCompliantCount" style="color:var(--accent-red);">0</span>
         </p>
     </div>
-
-    <div class="section">
-        <h3>Detected Contacts</h3>
-        <div id="droneContactList"></div>
-    </div>
-
-    <div id="droneMap" class="drone-map"></div>
 </div>

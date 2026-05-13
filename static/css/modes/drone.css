@@ -1,5 +1,80 @@
 /* Drone Intelligence Styles */
 
+/* ── Main visuals panel ── */
+.drone-visuals-container {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.drone-visuals-header {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.drone-visuals-stats {
+    display: flex;
+    gap: 24px;
+}
+
+.drone-vsstat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.drone-vsstat-value {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.drone-vsstat-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+}
+
+.drone-visuals-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
+}
+
+.drone-contact-panel {
+    width: 300px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--border-color);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.drone-main-map {
+    flex: 1;
+    min-width: 0;
+}
+
+.drone-empty-state {
+    padding: 24px 12px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+}
+
 .drone-vector-pills {
     display: flex;
     flex-wrap: wrap;
@@ -69,12 +144,6 @@
     color: var(--accent-red);
 }
 
-.drone-map {
-    height: 280px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    margin: 0 12px 12px;
-}
 
 .drone-marker-high-risk {
     animation: dsc-distress-pulse 1.5s infinite;

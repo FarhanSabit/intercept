@@ -2212,6 +2212,35 @@
                     </div>
                 </div>
 
+                <!-- Drone Intelligence Dashboard -->
+                <div id="droneVisuals" class="drone-visuals-container" style="display: none;">
+                    <div class="drone-visuals-header">
+                        <div class="drone-visuals-stats">
+                            <div class="drone-vsstat">
+                                <span class="drone-vsstat-value" id="droneVsContacts">0</span>
+                                <span class="drone-vsstat-label">Contacts</span>
+                            </div>
+                            <div class="drone-vsstat">
+                                <span class="drone-vsstat-value" id="droneVsNonCompliant" style="color:var(--accent-red);">0</span>
+                                <span class="drone-vsstat-label">Non-Compliant</span>
+                            </div>
+                            <div class="drone-vsstat">
+                                <span class="drone-vsstat-value" id="droneVsHighRisk" style="color:var(--accent-orange);">0</span>
+                                <span class="drone-vsstat-label">High Risk</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="drone-visuals-body">
+                        <div class="drone-contact-panel">
+                            <div id="droneContactList"></div>
+                            <div id="droneContactEmpty" class="drone-empty-state">
+                                No contacts detected — start detection to begin scanning.
+                            </div>
+                        </div>
+                        <div id="droneMainMap" class="drone-main-map"></div>
+                    </div>
+                </div>
+
                 <!-- Meshtastic Messages Dashboard -->
                 <div id="meshtasticVisuals" class="mesh-visuals-container" style="display: none;">
                     <!-- Compact Status Strip -->
@@ -4787,6 +4816,7 @@
             const radiosondeVisuals = document.getElementById('radiosondeVisuals');
             const meteorVisuals = document.getElementById('meteorVisuals');
             const systemVisuals = document.getElementById('systemVisuals');
+            const droneVisuals = document.getElementById('droneVisuals');
             if (wifiLayoutContainer) wifiLayoutContainer.classList.toggle('active', mode === 'wifi');
             if (btLayoutContainer) btLayoutContainer.classList.toggle('active', mode === 'bluetooth');
             if (satelliteVisuals) satelliteVisuals.style.display = mode === 'satellite' ? 'block' : 'none';
@@ -4831,10 +4861,11 @@
             if (radiosondeVisuals) radiosondeVisuals.style.display = mode === 'radiosonde' ? 'flex' : 'none';
             if (meteorVisuals) meteorVisuals.style.display = mode === 'meteor' ? 'flex' : 'none';
             if (systemVisuals) systemVisuals.style.display = mode === 'system' ? 'flex' : 'none';
+            if (droneVisuals) droneVisuals.style.display = mode === 'drone' ? 'flex' : 'none';
 
             // Hide the signal feed output for modes that have their own visuals
             const outputEl = document.getElementById('output');
-            const modesWithVisuals = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'aprs', 'wifi', 'bluetooth', 'tscm', 'spystations', 'meshtastic', 'meshcore', 'websdr', 'subghz', 'spaceweather', 'bt_locate', 'wifi_locate', 'waterfall', 'morse', 'meteor', 'system', 'ook', 'radiosonde', 'gps'];
+            const modesWithVisuals = ['satellite', 'sstv', 'weathersat', 'sstv_general', 'wefax', 'aprs', 'wifi', 'bluetooth', 'tscm', 'spystations', 'meshtastic', 'meshcore', 'websdr', 'subghz', 'spaceweather', 'bt_locate', 'wifi_locate', 'waterfall', 'morse', 'meteor', 'system', 'ook', 'radiosonde', 'gps', 'drone'];
             if (outputEl) outputEl.style.display = modesWithVisuals.includes(mode) ? 'none' : 'block';
 
             // Prevent Leaflet heatmap redraws on hidden BT Locate map containers.
@@ -5042,7 +5073,10 @@
             } else if (mode === 'ook') {
                 OokMode.init();
             } else if (mode === 'drone') {
-                if (typeof DroneMode !== 'undefined') DroneMode.init();
+                if (typeof DroneMode !== 'undefined') {
+                    DroneMode.init();
+                    setTimeout(() => { DroneMode.invalidateMap?.(); }, 100);
+                }
             }
             if (requestId !== modeSwitchRequestId) return;
 
