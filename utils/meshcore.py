@@ -416,16 +416,28 @@ class MeshcoreClient:
         """Scan for BLE MeshCore devices; works with or without an active connection."""
         if self._worker:
             return self._worker.scan_ble_sync()
-        # No worker yet — run a one-shot scan directly
+        # No worker — spin up a dedicated thread with its own event loop to avoid
+        # conflicts with gevent's monkey-patched event loop in the Flask thread.
         import asyncio
+        import concurrent.futures
 
         from utils.meshcore_client import _scan_ble
 
-        try:
-            return asyncio.run(_scan_ble())
-        except Exception as exc:
-            logger.warning("BLE scan failed: %s", exc)
-            return []
+        def _run() -> list[dict]:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(_scan_ble())
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            try:
+                return executor.submit(_run).result(timeout=12)
+            except Exception as exc:
+                logger.warning("BLE scan failed: %s", exc)
+                return []
 
 
 _client: MeshcoreClient | None = None
