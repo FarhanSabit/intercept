@@ -9,9 +9,11 @@ const MeshCore = (function () {
     let _transport = 'serial';
     let _eventSource = null;
     let _map = null;
-    let _markers = {};          // node_id → L.marker
+    let _markers = {};
     let _telemetryChart = null;
     let _connected = false;
+    let _nodeCount = 0;
+    let _msgCount = 0;
 
     // ── Init / Destroy ─────────────────────────────────────────────────────
     function init() {
@@ -25,6 +27,8 @@ const MeshCore = (function () {
         if (_map) { _map.remove(); _map = null; _markers = {}; }
         if (_telemetryChart) { _telemetryChart.destroy(); _telemetryChart = null; }
         _connected = false;
+        _nodeCount = 0;
+        _msgCount = 0;
     }
 
     function invalidateMap() {
@@ -173,6 +177,9 @@ const MeshCore = (function () {
             <div class="meshcore-message-text">${_esc(msg.text)}</div>`;
         feed.appendChild(el);
         feed.scrollTop = feed.scrollHeight;
+        _msgCount++;
+        const mc = document.getElementById('meshcoreMsgCount');
+        if (mc) mc.textContent = _msgCount;
     }
 
     async function sendMessage() {
@@ -225,8 +232,12 @@ const MeshCore = (function () {
             el = document.createElement('div');
             el.className = 'meshcore-node-item';
             el.id = 'meshcore-node-' + node.node_id;
-            list.innerHTML = '';
+            const empty = list.querySelector('.meshcore-empty');
+            if (empty) empty.remove();
             list.appendChild(el);
+            _nodeCount++;
+            const nc = document.getElementById('meshcoreNodeCount');
+            if (nc) nc.textContent = _nodeCount;
         }
         const hops = node.hops_away !== null ? `${node.hops_away}h` : '?';
         const snr  = node.snr !== null ? `${node.snr}dB` : '';
@@ -272,10 +283,22 @@ const MeshCore = (function () {
         const container = document.getElementById('meshcoreMap');
         if (!container || _map) return;
         _map = L.map('meshcoreMap', { zoomControl: true }).setView([20, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 18,
+
+        const fallback = L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+            attribution: '© CartoDB',
+            maxZoom: 19,
         }).addTo(_map);
+
+        if (typeof Settings !== 'undefined') {
+            Promise.race([
+                Settings.init(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+            ]).then(() => {
+                fallback.remove();
+                Settings.createTileLayer().addTo(_map);
+                Settings.registerMap(_map);
+            }).catch(e => console.warn('MeshCore: Settings init failed, using fallback tiles:', e));
+        }
     }
 
     function _updateMapMarker(node) {
