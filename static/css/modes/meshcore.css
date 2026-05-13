@@ -20,9 +20,13 @@
     max-width: 100% !important;
 }
 
-/* ── Container overrides ── */
+/* ── Visuals container (base rules duplicated from meshtastic.css — lazy-load safety) ── */
 #meshcoreVisuals {
+    display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
     padding: 0;
     gap: 0;
 }

@@ -86,9 +86,21 @@ const MeshCore = (function () {
             body.address = document.getElementById('meshcoreBleSelect').value || null;
         }
         try {
-            await fetch('/meshcore/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             _updateStatusUI('connecting');
-        } catch (e) { console.error('Connect failed:', e); }
+            await fetch('/meshcore/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            _pollUntilConnected(0);
+        } catch (e) {
+            _updateStatusUI('error', 'Connection failed');
+            console.error('Connect failed:', e);
+        }
+    }
+
+    function _pollUntilConnected(attempts) {
+        if (_connected || attempts > 15) return;
+        setTimeout(async () => {
+            await _checkStatus();
+            if (!_connected) _pollUntilConnected(attempts + 1);
+        }, 2000);
     }
 
     async function disconnect() {
@@ -383,23 +395,32 @@ const MeshCore = (function () {
                 container.appendChild(arrow);
             }
         });
-        modal.style.display = 'flex';
+        _openModal(modal);
     }
 
     function closeTraceroute() {
-        const modal = document.getElementById('meshcoreTracerouteModal');
-        if (modal) modal.style.display = 'none';
+        _closeModal(document.getElementById('meshcoreTracerouteModal'));
     }
 
     // ── Contacts ───────────────────────────────────────────────────────────
     function showAddContact() {
-        const modal = document.getElementById('meshcoreAddContactModal');
-        if (modal) modal.style.display = 'flex';
+        _openModal(document.getElementById('meshcoreAddContactModal'));
     }
 
     function closeAddContact() {
-        const modal = document.getElementById('meshcoreAddContactModal');
-        if (modal) modal.style.display = 'none';
+        _closeModal(document.getElementById('meshcoreAddContactModal'));
+    }
+
+    function _openModal(modal) {
+        if (!modal) return;
+        modal.style.display = '';
+        requestAnimationFrame(() => modal.classList.add('show'));
+    }
+
+    function _closeModal(modal) {
+        if (!modal) return;
+        modal.classList.remove('show');
+        setTimeout(() => { modal.style.display = 'none'; }, 200);
     }
 
     async function saveContact() {
