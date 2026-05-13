@@ -23,6 +23,7 @@ var DroneMode = (function () {
     function destroy() {
         _disconnectSSE();
         if (_map) {
+            if (typeof Settings !== 'undefined' && Settings.unregisterMap) Settings.unregisterMap(_map);
             _map.remove();
             _map = null;
         }
@@ -40,10 +41,15 @@ var DroneMode = (function () {
         var mapEl = document.getElementById('droneMainMap');
         if (!mapEl || typeof L === 'undefined') return;
         _map = L.map('droneMainMap', { zoomControl: true }).setView([20, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 18,
-        }).addTo(_map);
+        if (typeof Settings !== 'undefined' && Settings.createTileLayer) {
+            Settings.createTileLayer().addTo(_map);
+            Settings.registerMap(_map);
+        } else {
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+                maxZoom: 19,
+            }).addTo(_map);
+        }
     }
 
     function _connectSSE() {
