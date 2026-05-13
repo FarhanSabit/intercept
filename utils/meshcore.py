@@ -413,10 +413,19 @@ class MeshcoreClient:
             self._worker.request_traceroute(node_id)
 
     def scan_ble(self) -> list[dict]:
-        """Scan for BLE MeshCore devices; returns list of found device dicts."""
+        """Scan for BLE MeshCore devices; works with or without an active connection."""
         if self._worker:
             return self._worker.scan_ble_sync()
-        return []
+        # No worker yet — run a one-shot scan directly
+        import asyncio
+
+        from utils.meshcore_client import _scan_ble
+
+        try:
+            return asyncio.run(_scan_ble())
+        except Exception as exc:
+            logger.warning("BLE scan failed: %s", exc)
+            return []
 
 
 _client: MeshcoreClient | None = None
