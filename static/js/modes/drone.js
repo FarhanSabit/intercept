@@ -159,10 +159,12 @@
 
     function _start() {
         const iface = document.getElementById('droneWifiIface')?.value.trim() || null;
+        const rtlIndex = parseInt(document.getElementById('droneRtlIndex')?.value, 10) || 0;
+        const useHackrf = document.getElementById('droneUseHackrf')?.checked ?? true;
         fetch('/drone/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wifi_iface: iface }),
+            body: JSON.stringify({ wifi_iface: iface, rtl_sdr_index: rtlIndex, use_hackrf: useHackrf }),
         })
         .then(function (r) { return r.json(); })
         .then(function () { _setRunningUI(true); _refreshStatus(); })

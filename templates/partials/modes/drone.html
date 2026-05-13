@@ -1,5 +1,5 @@
 <!-- DRONE INTELLIGENCE MODE -->
-<div id="droneMode" class="mode-content" style="display: none;">
+<div id="droneMode" class="mode-content">
     <div class="section">
         <h3>Drone Intelligence</h3>
         <p class="info-text" style="margin-bottom: 12px;">
@@ -19,6 +19,18 @@
     <div class="section">
         <h3>WiFi Interface <span style="font-weight:400; font-size:11px; color:var(--text-dim)">(monitor mode)</span></h3>
         <input type="text" id="droneWifiIface" placeholder="e.g. wlan0mon" style="width:100%;">
+    </div>
+
+    <div class="section">
+        <h3>RTL-SDR Device <span style="font-weight:400; font-size:11px; color:var(--text-dim)">(433 MHz)</span></h3>
+        <input type="number" id="droneRtlIndex" value="0" min="0" max="7" style="width:100%;" placeholder="Device index">
+    </div>
+
+    <div class="section">
+        <label class="inline-checkbox">
+            <input type="checkbox" id="droneUseHackrf" checked>
+            Use HackRF <span style="font-size:10px; color:var(--text-dim);">(2.4 / 5.8 GHz)</span>
+        </label>
     </div>
 
     <div class="section">
