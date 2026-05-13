@@ -10,9 +10,61 @@
     function init() {
         document.getElementById('droneStartBtn')?.addEventListener('click', _start);
         document.getElementById('droneStopBtn')?.addEventListener('click', _stop);
+        _refreshDevices();
         _initMap();
         _connectSSE();
         _refreshStatus();
+    }
+
+    function _refreshDevices() {
+        fetch('/drone/devices')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                const devs = data.devices || {};
+                _populateSelect(
+                    'droneWifiIface',
+                    devs.wifi_interfaces || [],
+                    function (i) { return i.name; },
+                    function (i) { return i.display_name || i.name; },
+                    'No WiFi interfaces found'
+                );
+                _populateSelect(
+                    'droneRtlIndex',
+                    devs.sdr_devices || [],
+                    function (d) { return d.index; },
+                    function (d) { return d.display_name || d.name; },
+                    'No SDR devices found'
+                );
+            })
+            .catch(function () {
+                _setSelectError('droneWifiIface', 'Failed to load interfaces');
+                _setSelectError('droneRtlIndex', 'Failed to load devices');
+            });
+    }
+
+    function _populateSelect(id, items, valFn, labelFn, emptyMsg) {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        sel.innerHTML = '';
+        if (!items.length) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = emptyMsg;
+            sel.appendChild(opt);
+            return;
+        }
+        items.forEach(function (item) {
+            const opt = document.createElement('option');
+            opt.value = valFn(item);
+            opt.textContent = labelFn(item);
+            sel.appendChild(opt);
+        });
+    }
+
+    function _setSelectError(id, msg) {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">' + msg + '</option>';
     }
 
     function _initMap() {
@@ -163,8 +215,10 @@
     }
 
     function _start() {
-        const iface = document.getElementById('droneWifiIface')?.value.trim() || null;
-        const rtlIndex = parseInt(document.getElementById('droneRtlIndex')?.value, 10) || 0;
+        const ifaceVal = document.getElementById('droneWifiIface')?.value || '';
+        const iface = ifaceVal || null;
+        const rtlVal = document.getElementById('droneRtlIndex')?.value;
+        const rtlIndex = rtlVal !== '' && rtlVal != null ? parseInt(rtlVal, 10) : 0;
         const useHackrf = document.getElementById('droneUseHackrf')?.checked ?? true;
         fetch('/drone/start', {
             method: 'POST',

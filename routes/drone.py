@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import platform
 import queue
+import subprocess
 import threading
 
 from flask import Blueprint, Response, jsonify, request
@@ -54,6 +56,81 @@ def _ensure_workers() -> None:
     if _relay_thread is None or not _relay_thread.is_alive():
         _relay_thread = threading.Thread(target=_relay_observations, daemon=True)
         _relay_thread.start()
+
+
+@drone_bp.route("/devices")
+def devices():
+    """Return available WiFi interfaces and SDR devices for drone detection."""
+    result: dict = {"wifi_interfaces": [], "sdr_devices": []}
+
+    # WiFi interfaces via iw/iwconfig
+    if platform.system() == "Darwin":
+        try:
+            out = subprocess.run(
+                ["networksetup", "-listallhardwareports"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout
+            lines = out.split("\n")
+            for i, line in enumerate(lines):
+                if "Wi-Fi" in line or "AirPort" in line:
+                    port = line.replace("Hardware Port:", "").strip()
+                    for j in range(i + 1, min(i + 3, len(lines))):
+                        if "Device:" in lines[j]:
+                            dev = lines[j].split("Device:")[1].strip()
+                            result["wifi_interfaces"].append(
+                                {"name": dev, "display_name": f"{port} ({dev})", "type": "internal"}
+                            )
+                            break
+        except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.SubprocessError):
+            pass
+    else:
+        try:
+            out = subprocess.run(["iw", "dev"], capture_output=True, text=True, timeout=5).stdout
+            current: str | None = None
+            for line in out.split("\n"):
+                line = line.strip()
+                if line.startswith("Interface"):
+                    current = line.split()[1]
+                elif current and "type" in line:
+                    iface_type = line.split()[-1]
+                    result["wifi_interfaces"].append(
+                        {
+                            "name": current,
+                            "display_name": f"{current} ({iface_type})",
+                            "type": iface_type,
+                        }
+                    )
+                    current = None
+        except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.SubprocessError):
+            try:
+                out = subprocess.run(["iwconfig"], capture_output=True, text=True, timeout=5).stdout
+                for line in out.split("\n"):
+                    if "IEEE 802.11" in line:
+                        iface = line.split()[0]
+                        result["wifi_interfaces"].append(
+                            {"name": iface, "display_name": f"{iface} (managed)", "type": "managed"}
+                        )
+            except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.SubprocessError):
+                pass
+
+    # SDR devices
+    try:
+        from utils.sdr import SDRFactory
+
+        for sdr in SDRFactory.detect_devices():
+            sdr_type = sdr.sdr_type.value if hasattr(sdr.sdr_type, "value") else str(sdr.sdr_type)
+            display = sdr.name
+            if sdr.serial and sdr.serial not in ("N/A", "Unknown"):
+                display = f"{sdr.name} (SN: {sdr.serial[-8:]})"
+            result["sdr_devices"].append(
+                {"index": sdr.index, "name": sdr.name, "display_name": display, "type": sdr_type}
+            )
+    except Exception:
+        pass
+
+    return jsonify({"status": "ok", "devices": result})
 
 
 @drone_bp.route("/status")
